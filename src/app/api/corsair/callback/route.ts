@@ -28,5 +28,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "OAuth callback failed" }, { status: 400 });
   }
 
-  return NextResponse.redirect(new URL("/", process.env.APP_URL));
+  return NextResponse.redirect(new URL("/connect", process.env.APP_URL));
 }

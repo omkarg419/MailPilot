@@ -10,5 +10,17 @@ export const corsair = createCorsair({
     plugins: [gmail(), googlecalendar()],
     database: conn,
     kek: process.env.CORSAIR_KEK!,
-    multiTenancy: true,//user id is the tenant id for multi-tenancy because next-auth uses user id as the session id
+    multiTenancy: true,
 });
+
+/**
+ * Returns whether the given tenant (next-auth user id) has Gmail and
+ * Google Calendar connected through Corsair.
+ */
+export async function getConnectionFlags(tenantId: string) {
+    const status = await corsair.manage.connectionStatus.get({ tenantId });
+    return {
+        gmail: status.gmail === "connected",
+        calendar: status.googlecalendar === "connected",
+    };
+}
