@@ -17,7 +17,8 @@
     "lint:fix": "next lint --fix",
     "preview": "next build && next start",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test-script": "tsx src/server/test.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.7.2",
@@ -30,6 +31,7 @@
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
     "corsair": "^0.1.76",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.41.0",
     "next": "^15.2.3",
     "next-auth": "5.0.0-beta.25",
@@ -38,6 +40,7 @@
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
     "superjson": "^2.2.1",
+    "tsx": "^4.22.4",
     "zod": "^4.1.13"
   },
   "devDependencies": {
