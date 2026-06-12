@@ -42,6 +42,22 @@ export default async function Home() {
               <p className="text-center text-2xl text-white">
                 {session && <span>Logged in as {session.user?.name}</span>}
               </p>
+              {session && (
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  <a
+                    href="/api/corsair/connect?plugin=gmail"
+                    className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
+                  >
+                    Connect Gmail
+                  </a>
+                  <a
+                    href="/api/corsair/connect?plugin=googlecalendar"
+                    className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
+                  >
+                    Connect Calendar
+                  </a>
+                </div>
+              )}
               <Link
                 href={session ? "/api/auth/signout" : "/api/auth/signin"}
                 className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
