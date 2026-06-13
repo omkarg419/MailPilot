@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/server/auth";
+import { MailClient } from "@/app/mail/mail-client";
+
 
 export default async function MailPage() {
   const session = await auth();
@@ -9,13 +11,10 @@ export default async function MailPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 text-zinc-100">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        Inbox coming soon
-      </h1>
-      <p className="mt-2 text-sm text-zinc-500">
-        Your accounts are connected. The MailPilot inbox lands here in Phase 2.
-      </p>
-    </main>
+    <MailClient
+      userEmail={session.user.email ?? ""}
+      userName={session.user.name ?? ""}
+      userImage={session.user.image ?? ""}
+    />
   );
 }
