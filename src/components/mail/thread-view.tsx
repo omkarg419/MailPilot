@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 import { EmailBody } from "./email-body";
 import { formatDate, initials } from "./mail-utils";
@@ -53,11 +54,18 @@ function ThreadMessagesSkeleton() {
   );
 }
 
-const headerOutlineButtonClass =
-  "hover:bg-muted hover:text-foreground dark:hover:bg-muted/70";
+const threadActionButtonBase =
+  "h-8 gap-2 rounded-lg border px-3.5 text-xs font-medium shadow-sm transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50";
 
-const headerDestructiveButtonClass =
-  "hover:bg-destructive/20 dark:hover:bg-destructive/35";
+const threadActionButtonClass = cn(
+  threadActionButtonBase,
+  "border-border/70 bg-muted text-foreground hover:border-border hover:bg-accent",
+);
+
+const threadDeleteButtonClass = cn(
+  threadActionButtonBase,
+  "border-destructive/60 bg-destructive text-white hover:border-destructive hover:bg-destructive/90",
+);
 
 function ThreadViewHeader({
   subject,
@@ -93,12 +101,12 @@ function ThreadViewHeader({
           <Skeleton className="h-7 w-2/3 max-w-md" />
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2.5">
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className={headerOutlineButtonClass}
+          className={threadActionButtonClass}
           onClick={onReply}
           disabled={!actionsEnabled}
         >
@@ -108,9 +116,9 @@ function ThreadViewHeader({
         {activeLabel === "TRASH" ? (
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className={headerOutlineButtonClass}
+            className={threadActionButtonClass}
             onClick={onRestore}
             disabled={!actionsEnabled || isRestorePending}
           >
@@ -120,9 +128,9 @@ function ThreadViewHeader({
         ) : (
           <Button
             type="button"
-            variant="destructive"
+            variant="ghost"
             size="sm"
-            className={headerDestructiveButtonClass}
+            className={threadDeleteButtonClass}
             onClick={onDelete}
             disabled={!actionsEnabled || isDeletePending}
           >
@@ -132,9 +140,9 @@ function ThreadViewHeader({
         )}
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className={headerOutlineButtonClass}
+          className={threadActionButtonClass}
           onClick={onMarkUnread}
           disabled={!actionsEnabled || isMarkUnreadPending}
         >

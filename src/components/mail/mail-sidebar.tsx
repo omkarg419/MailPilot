@@ -68,7 +68,8 @@ export function MailSidebar({
         <Button
           type="button"
           variant="default"
-          className="w-full justify-center"
+          size="icon-sm"
+          className="h-9 w-full justify-center gap-2 rounded-full font-semibold shadow-sm transition-all hover:bg-primary/90 hover:shadow-md active:scale-[0.98]"
           onClick={onCompose}
         >
           <HugeiconsIcon icon={PencilEdit01Icon} strokeWidth={2} />
