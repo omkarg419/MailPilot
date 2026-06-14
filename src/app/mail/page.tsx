@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 
+import { MailClientLoader } from "@/app/mail/mail-client-loader";
 import { auth } from "@/server/auth";
-import { MailClient } from "@/app/mail/mail-client";
-
 
 export default async function MailPage() {
   const session = await auth();
@@ -11,7 +10,7 @@ export default async function MailPage() {
   }
 
   return (
-    <MailClient
+    <MailClientLoader
       userEmail={session.user.email ?? ""}
       userName={session.user.name ?? ""}
       userImage={session.user.image ?? ""}
