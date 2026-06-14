@@ -123,7 +123,7 @@ function ThreadViewHeader({
         )}
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={onMarkUnread}
           disabled={!actionsEnabled || isMarkUnreadPending}
