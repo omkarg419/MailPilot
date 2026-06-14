@@ -1,6 +1,9 @@
 import { auth } from "@/server/auth";
 import { executeOperation } from "@/server/agent/execute-operation";
-import { findCalendarConflict } from "@/server/calendar/conflicts";
+import {
+  findCalendarConflict,
+  formatCalendarConflictMessage,
+} from "@/server/calendar/conflicts";
 import { toGoogleCalendarEventTime } from "@/server/calendar/utils";
 import { buildRawMessage } from "@/server/gmail/utils";
 import type { AgentConfirmRequestBody } from "@/types/agent-chat";
@@ -91,7 +94,7 @@ export async function POST(req: Request) {
       if (conflict.conflict) {
         return Response.json(
           {
-            error: `This time slot is already booked (${conflict.title}). Choose a different time.`,
+            error: formatCalendarConflictMessage(conflict.title),
             status: "failed",
           },
           { status: 409 },

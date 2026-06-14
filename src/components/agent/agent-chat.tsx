@@ -234,7 +234,13 @@ export function AgentChat({ context, className }: AgentChatProps) {
       const res = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, context }),
+        body: JSON.stringify({
+          messages: history,
+          context: {
+            ...context,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+        }),
       });
 
       if (res.status === 401) {

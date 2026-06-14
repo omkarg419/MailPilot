@@ -6,6 +6,8 @@ export type ClientChatMessage = {
 export type AgentChatContext = {
   threadId?: string;
   label?: string;
+  /** Browser IANA timezone for calendar conflict checks. */
+  timeZone?: string;
 };
 
 export type CalendarBlockStatus = "proposed" | "booked" | "failed";

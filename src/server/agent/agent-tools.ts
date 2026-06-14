@@ -2,14 +2,23 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 
+import {
+  findCalendarConflict,
+  formatCalendarConflictMessage,
+} from "@/server/calendar/conflicts";
 import type { AgentStreamEvent } from "@/types/agent-chat";
 
 export type SseSender = (event: AgentStreamEvent) => void;
 
+export type UiAgentToolOptions = {
+  tenantId: string;
+  timeZone?: string;
+};
+
 export const PROPOSE_CALENDAR_EVENT_TOOL = {
   name: "propose_calendar_event",
   description:
-    "Show a calendar event card in the UI for the user to review and book. Does NOT create the event yet.",
+    "Show a calendar event card if the time slot is free. If the slot is already booked, only a text message is shown (no card). Does NOT create the event yet.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -93,13 +102,38 @@ function chunkText(text: string, size = 48): string[] {
   return chunks.length ? chunks : [""];
 }
 
-export function handleUiAgentTool(
+export async function handleUiAgentTool(
   toolName: string,
   input: unknown,
   send: SseSender,
-): unknown {
+  options: UiAgentToolOptions,
+): Promise<unknown> {
   if (toolName === "propose_calendar_event") {
     const data = input as ProposeCalendarInput;
+
+    try {
+      const conflict = await findCalendarConflict(
+        options.tenantId,
+        "primary",
+        data.start,
+        data.end,
+        options.timeZone,
+      );
+
+      if (conflict.conflict) {
+        const message = formatCalendarConflictMessage(conflict.title);
+        send({ type: "text", content: message });
+        return {
+          ok: false,
+          conflict: true,
+          existingEvent: conflict.title,
+          message,
+        };
+      }
+    } catch {
+      // If availability check fails, still show the card so the user can try Book.
+    }
+
     const id = randomUUID();
     send({
       type: "calendar_start",

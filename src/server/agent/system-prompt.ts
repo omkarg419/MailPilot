@@ -14,6 +14,16 @@ export async function buildAgentSystemPrompt(
   const calendarOps = listAvailableOperations(tenantId, "googlecalendar").slice(0, 15);
 
   const contextLines: string[] = [];
+  const tz = context?.timeZone ?? "UTC";
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  contextLines.push(
+    `Today's date in user timezone (${tz}): ${today}. Use this when interpreting "today", "tomorrow", etc.`,
+  );
   if (context?.label) contextLines.push(`Active mailbox label: ${context.label}`);
   if (context?.threadId) {
     contextLines.push(
@@ -36,7 +46,8 @@ ${contextLines.length ? `Session context:\n${contextLines.join("\n")}\n` : ""}
 - Keep plain text explanations short (1–3 sentences).
 - For email drafts: ALWAYS call draft_email with full to, subject, and body. Never write the email body in a text reply.
 - For meetings: ALWAYS call propose_calendar_event. Never describe the event details in markdown text.
-- Calendar times: use local datetimes like 2026-06-15T15:00:00 for start/end (no markdown). The UI adds the user's timezone on Book.
+- If the slot is already booked, the UI shows a plain-text message only (no calendar card). Suggest another time.
+- Calendar times: use local datetimes like ${today}T15:00:00 for start/end (no Z/offset, no markdown). The UI shows these wall-clock values and adds the user's timezone on Book.
 - Sending email and booking calendar events require the user to click Send / Book in the UI. Do NOT call execute_operation to send or create events directly unless the user explicitly confirms in chat after seeing the card.
 
 ## Combined meeting + email flow (order matters)

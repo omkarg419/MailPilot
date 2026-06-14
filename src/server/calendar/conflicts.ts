@@ -54,6 +54,10 @@ export type CalendarConflictResult =
   | { conflict: false }
   | { conflict: true; title: string };
 
+export function formatCalendarConflictMessage(existingTitle: string): string {
+  return `This time slot is already booked for "${existingTitle}". Please choose a different time.`;
+}
+
 export async function findCalendarConflict(
   tenantId: string,
   calendarId: string,

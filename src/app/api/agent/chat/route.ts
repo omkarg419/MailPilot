@@ -109,7 +109,10 @@ export async function POST(req: Request) {
                 toolUse.input as ExecuteOperationInput,
               );
             } else if (UI_TOOL_NAMES.has(toolUse.name)) {
-              result = handleUiAgentTool(toolUse.name, toolUse.input, send);
+              result = await handleUiAgentTool(toolUse.name, toolUse.input, send, {
+                tenantId,
+                timeZone: body.context?.timeZone,
+              });
             } else {
               result = { ok: false, error: `Unknown tool: ${toolUse.name}` };
             }

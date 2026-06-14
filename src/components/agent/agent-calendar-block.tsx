@@ -21,30 +21,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { formatCalendarEventRange } from "@/lib/calendar-display";
 import type { CalendarBlockStatus } from "@/types/agent-chat";
-
-function formatEventRange(start: string, end: string): string {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  if (Number.isNaN(startDate.getTime())) return `${start} – ${end}`;
-
-  const datePart = startDate.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  const startTime = startDate.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  const endTime = endDate.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  return `${datePart} · ${startTime} – ${endTime}`;
-}
 
 export type AgentCalendarBlockProps = {
   id: string;
@@ -141,7 +119,7 @@ export function AgentCalendarBlock({
       <CardContent className="space-y-3 text-sm">
         <div className="flex items-center gap-2 text-muted-foreground">
           <HugeiconsIcon icon={Clock01Icon} strokeWidth={2} className="size-4 shrink-0" />
-          <span>{formatEventRange(start, end)}</span>
+          <span>{formatCalendarEventRange(start, end)}</span>
         </div>
         {attendees && attendees.length > 0 && (
           <div className="flex items-start gap-2 text-muted-foreground">
