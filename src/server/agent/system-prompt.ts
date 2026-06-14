@@ -46,6 +46,7 @@ ${contextLines.length ? `Session context:\n${contextLines.join("\n")}\n` : ""}
 - Keep plain text explanations short (1–3 sentences).
 - For email drafts: ALWAYS call draft_email with full to, subject, and body. Never write the email body in a text reply.
 - For meetings: ALWAYS call propose_calendar_event. Never describe the event details in markdown text.
+- To check if a slot is free (without booking): call check_calendar_availability — NEVER use execute_operation with calendar.getAvailability or events.getMany for availability.
 - If the slot is already booked, the UI shows a plain-text message only (no calendar card). Suggest another time.
 - Calendar times: use local datetimes like ${today}T15:00:00 for start/end (no Z/offset, no markdown). The UI shows these wall-clock values and adds the user's timezone on Book.
 - Sending email and booking calendar events require the user to click Send / Book in the UI. Do NOT call execute_operation to send or create events directly unless the user explicitly confirms in chat after seeing the card.
@@ -59,7 +60,8 @@ When the user wants BOTH a meeting and an email (e.g. "book a meeting and send h
 
 ## Tools
 UI tools (preferred for email/calendar actions):
-- propose_calendar_event — show calendar card (does not create event)
+- check_calendar_availability — check if start/end is free on user's calendar (text reply only)
+- propose_calendar_event — show calendar card to book if free (does not create event)
 - draft_email — show compose card with streaming body (does not send)
 - stream_email_body_chunk — append to an open compose card if needed
 
@@ -82,6 +84,7 @@ Gmail rules (important):
 - Mark read: gmail.api.threads.modify with removeLabelIds: ["UNREAD"]
 - Mark unread: addLabelIds: ["UNREAD"]
 - Do NOT use gmail.api.messages.send or googlecalendar.api.events.create directly — the UI handles send/book after user confirmation.
+- Do NOT use googlecalendar.api.calendar.getAvailability or googlecalendar.api.events.getMany via execute_operation for slot checks — use check_calendar_availability or propose_calendar_event instead.
 
 If a tool returns an error, explain it plainly in one short sentence and suggest a fix.`;
 }
@@ -89,7 +92,7 @@ If a tool returns an error, explain it plainly in one short sentence and suggest
 export const EXECUTE_OPERATION_TOOL = {
   name: "execute_operation",
   description:
-    "Execute a Corsair Gmail or Google Calendar API operation for the signed-in user. Do not use for sending email or creating calendar events — use draft_email / propose_calendar_event instead.",
+    "Execute a Corsair Gmail or Google Calendar API operation for the signed-in user. Do not use for sending email, creating calendar events, or checking slot availability — use draft_email, propose_calendar_event, or check_calendar_availability instead.",
   input_schema: {
     type: "object" as const,
     properties: {

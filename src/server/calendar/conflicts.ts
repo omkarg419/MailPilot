@@ -2,7 +2,7 @@ import "server-only";
 
 import { executeOperation } from "@/server/agent/execute-operation";
 
-import { eventTimeToMs, toGoogleCalendarEventTime } from "./utils";
+import { eventTimeToMs, toGoogleCalendarEventTime, toRfc3339UtcIso } from "./utils";
 
 type CalendarEventItem = {
   summary?: string;
@@ -58,6 +58,34 @@ export function formatCalendarConflictMessage(existingTitle: string): string {
   return `This time slot is already booked for "${existingTitle}". Please choose a different time.`;
 }
 
+export function formatCalendarAvailableMessage(): string {
+  return "This time slot is free on your calendar.";
+}
+
+export type CalendarAvailabilityResult =
+  | { available: true }
+  | { available: false; existingEvent: string };
+
+export async function checkCalendarAvailability(
+  tenantId: string,
+  calendarId: string,
+  start: string,
+  end: string,
+  timeZone?: string,
+): Promise<CalendarAvailabilityResult> {
+  const conflict = await findCalendarConflict(
+    tenantId,
+    calendarId,
+    start,
+    end,
+    timeZone,
+  );
+  if (conflict.conflict) {
+    return { available: false, existingEvent: conflict.title };
+  }
+  return { available: true };
+}
+
 export async function findCalendarConflict(
   tenantId: string,
   calendarId: string,
@@ -79,8 +107,8 @@ export async function findCalendarConflict(
     return { conflict: false };
   }
 
-  const timeMin = new Date(proposedStartMs).toISOString();
-  const timeMax = new Date(proposedEndMs).toISOString();
+  const timeMin = toRfc3339UtcIso(start, timeZone);
+  const timeMax = toRfc3339UtcIso(end, timeZone);
 
   const listResult = await executeOperation(tenantId, {
     plugin: "googlecalendar",

@@ -105,3 +105,12 @@ function localDateTimeInZoneToUtcMs(local: string, timeZone: string): number {
 
   return guess;
 }
+
+/** RFC3339 UTC instant for Google Calendar list/query params (timeMin, timeMax). */
+export function toRfc3339UtcIso(value: string, timeZone?: string): string {
+  const ms = eventTimeToMs(toGoogleCalendarEventTime(value, timeZone));
+  if (ms === null) {
+    throw new Error(`Invalid datetime: ${value}`);
+  }
+  return new Date(ms).toISOString();
+}

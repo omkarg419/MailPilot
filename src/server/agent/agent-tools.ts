@@ -3,7 +3,9 @@ import "server-only";
 import { randomUUID } from "crypto";
 
 import {
+  checkCalendarAvailability,
   findCalendarConflict,
+  formatCalendarAvailableMessage,
   formatCalendarConflictMessage,
 } from "@/server/calendar/conflicts";
 import type { AgentStreamEvent } from "@/types/agent-chat";
@@ -15,6 +17,26 @@ export type UiAgentToolOptions = {
   timeZone?: string;
 };
 
+const CALENDAR_DATETIME_PROP = {
+  type: "string" as const,
+  description:
+    "Local datetime YYYY-MM-DDTHH:mm:ss (user timezone) or RFC3339 with offset",
+};
+
+export const CHECK_CALENDAR_AVAILABILITY_TOOL = {
+  name: "check_calendar_availability",
+  description:
+    "Check if a time slot is free on the user's primary calendar. Use for questions like 'am I free at 3pm?'. Do NOT use execute_operation getAvailability for this.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      start: CALENDAR_DATETIME_PROP,
+      end: CALENDAR_DATETIME_PROP,
+    },
+    required: ["start", "end"],
+  },
+};
+
 export const PROPOSE_CALENDAR_EVENT_TOOL = {
   name: "propose_calendar_event",
   description:
@@ -23,16 +45,8 @@ export const PROPOSE_CALENDAR_EVENT_TOOL = {
     type: "object" as const,
     properties: {
       title: { type: "string" },
-      start: {
-        type: "string",
-        description:
-          'Local datetime YYYY-MM-DDTHH:mm:ss (user timezone) or RFC3339 with offset',
-      },
-      end: {
-        type: "string",
-        description:
-          'Local datetime YYYY-MM-DDTHH:mm:ss (user timezone) or RFC3339 with offset',
-      },
+      start: CALENDAR_DATETIME_PROP,
+      end: CALENDAR_DATETIME_PROP,
       attendees: {
         type: "array",
         items: { type: "string" },
@@ -74,6 +88,11 @@ export const STREAM_EMAIL_BODY_CHUNK_TOOL = {
   },
 };
 
+export type CheckCalendarAvailabilityInput = {
+  start: string;
+  end: string;
+};
+
 export type ProposeCalendarInput = {
   title: string;
   start: string;
@@ -102,12 +121,50 @@ function chunkText(text: string, size = 48): string[] {
   return chunks.length ? chunks : [""];
 }
 
+function availabilityCheckErrorMessage(err: unknown): string {
+  const detail = err instanceof Error ? err.message : "Unknown error";
+  return `Couldn't verify calendar availability. ${detail}`;
+}
+
 export async function handleUiAgentTool(
   toolName: string,
   input: unknown,
   send: SseSender,
   options: UiAgentToolOptions,
 ): Promise<unknown> {
+  if (toolName === "check_calendar_availability") {
+    const data = input as CheckCalendarAvailabilityInput;
+
+    try {
+      const result = await checkCalendarAvailability(
+        options.tenantId,
+        "primary",
+        data.start,
+        data.end,
+        options.timeZone,
+      );
+
+      if (!result.available) {
+        const message = formatCalendarConflictMessage(result.existingEvent);
+        send({ type: "text", content: message });
+        return {
+          ok: true,
+          available: false,
+          existingEvent: result.existingEvent,
+          message,
+        };
+      }
+
+      const message = formatCalendarAvailableMessage();
+      send({ type: "text", content: message });
+      return { ok: true, available: true, message };
+    } catch (err) {
+      const message = availabilityCheckErrorMessage(err);
+      send({ type: "text", content: message });
+      return { ok: false, error: message };
+    }
+  }
+
   if (toolName === "propose_calendar_event") {
     const data = input as ProposeCalendarInput;
 
@@ -130,8 +187,10 @@ export async function handleUiAgentTool(
           message,
         };
       }
-    } catch {
-      // If availability check fails, still show the card so the user can try Book.
+    } catch (err) {
+      const message = availabilityCheckErrorMessage(err);
+      send({ type: "text", content: message });
+      return { ok: false, error: message };
     }
 
     const id = randomUUID();
@@ -183,6 +242,7 @@ export async function handleUiAgentTool(
 }
 
 export const UI_AGENT_TOOLS = [
+  CHECK_CALENDAR_AVAILABILITY_TOOL,
   PROPOSE_CALENDAR_EVENT_TOOL,
   DRAFT_EMAIL_TOOL,
   STREAM_EMAIL_BODY_CHUNK_TOOL,
