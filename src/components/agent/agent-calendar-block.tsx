@@ -38,6 +38,12 @@ export type AgentCalendarBlockProps = {
     status: CalendarBlockStatus,
     message?: string,
   ) => void;
+  onBooked?: (event: {
+    title: string;
+    start: string;
+    end: string;
+    attendees?: string[];
+  }) => void;
 };
 
 export function AgentCalendarBlock({
@@ -50,6 +56,7 @@ export function AgentCalendarBlock({
   status,
   message,
   onStatusChange,
+  onBooked,
 }: AgentCalendarBlockProps) {
   const [isBooking, setIsBooking] = useState(false);
 
@@ -78,6 +85,7 @@ export function AgentCalendarBlock({
         return;
       }
       onStatusChange?.(id, "booked", "Meeting scheduled.");
+      onBooked?.({ title, start, end, attendees });
     } catch {
       onStatusChange?.(id, "failed", "Could not book meeting.");
     } finally {

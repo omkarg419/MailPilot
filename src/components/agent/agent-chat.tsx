@@ -17,6 +17,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  buildPostBookingEmailPrompt,
+  isCombinedMeetingEmailRequest,
+} from "@/lib/agent-flow";
+import { formatCalendarEventRange } from "@/lib/calendar-display";
 
 import type {
   AgentChatContext,
@@ -186,6 +191,20 @@ function isAssistantEmpty(blocks: AssistantBlock[]): boolean {
   return blocks.length === 0 || blocks.every((b) => b.kind === "text" && !b.content);
 }
 
+function getPrecedingUserMessage(
+  messages: UiMessage[],
+  assistantMessageId: string,
+): string | null {
+  const idx = messages.findIndex((m) => m.id === assistantMessageId);
+  if (idx <= 0) return null;
+
+  for (let i = idx - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg?.role === "user") return msg.content;
+  }
+  return null;
+}
+
 export function AgentChat({ context, className }: AgentChatProps) {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
@@ -319,6 +338,26 @@ export function AgentChat({ context, className }: AgentChatProps) {
     );
   };
 
+  const handleCalendarBooked = (
+    assistantMessageId: string,
+    event: {
+      title: string;
+      start: string;
+      end: string;
+      attendees?: string[];
+    },
+  ) => {
+    const userText = getPrecedingUserMessage(messages, assistantMessageId);
+    if (!userText || !isCombinedMeetingEmailRequest(userText)) return;
+
+    void sendMessage(
+      buildPostBookingEmailPrompt({
+        ...event,
+        timeLabel: formatCalendarEventRange(event.start, event.end),
+      }),
+    );
+  };
+
   return (
     <Card
       className={cn(
@@ -408,6 +447,9 @@ export function AgentChat({ context, className }: AgentChatProps) {
                               patchAssistantBlocks(message.id, (blocks) =>
                                 updateCalendarStatus(blocks, id, status, msg),
                               )
+                            }
+                            onBooked={(event) =>
+                              handleCalendarBooked(message.id, event)
                             }
                           />
                         );

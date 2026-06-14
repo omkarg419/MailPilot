@@ -55,8 +55,9 @@ ${contextLines.length ? `Session context:\n${contextLines.join("\n")}\n` : ""}
 When the user wants BOTH a meeting and an email (e.g. "book a meeting and send him an email"):
 1. First call propose_calendar_event only.
 2. Add a brief plain-text note asking the user to click Book on the calendar card.
-3. After the user books (or says they booked), call draft_email with subject/body referencing the same meeting (title, time, attendees).
+3. After the user clicks Book on the calendar card, the app automatically sends a follow-up message — then call draft_email with subject/body referencing the same meeting (title, time, attendees).
 4. Never show draft_email before propose_calendar_event in the same turn for combined requests.
+5. When you receive "I booked the meeting… Please draft the email", call draft_email immediately (do not call propose_calendar_event again).
 
 ## Tools
 UI tools (preferred for email/calendar actions):
