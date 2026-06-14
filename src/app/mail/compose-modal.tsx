@@ -10,19 +10,13 @@ import {
 } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Attachment01Icon,
   Cancel01Icon,
-  ContactBookIcon,
   FloppyDiskIcon,
   Link01Icon,
   MailReplyIcon,
   MailSend01Icon,
-  MinusSignIcon,
-  NoteIcon,
   PencilEdit01Icon,
   SmileIcon,
-  Tag01Icon,
-  UserIcon,
 } from "@hugeicons/core-free-icons";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -34,20 +28,16 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  InputGroup,
-  InputGroupAddon,
   InputGroupButton,
-  InputGroupInput,
 } from "@/components/ui/input-group";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { ComposeFormFields } from "@/components/mail/compose-form-fields";
 import { api } from "@/trpc/react";
 
 export type ComposeInitial = {
@@ -87,26 +77,6 @@ function normalizeUrl(raw: string): string {
 function formatLinkInsert(url: string, text: string): string {
   const label = text.trim();
   return label ? `${label} (${url})` : url;
-}
-
-function ComposeFieldLabel({
-  icon,
-  label,
-  htmlFor,
-}: {
-  icon: typeof UserIcon;
-  label: string;
-  htmlFor: string;
-}) {
-  return (
-    <label
-      htmlFor={htmlFor}
-      className="flex items-center gap-2 text-xs font-medium text-muted-foreground"
-    >
-      <HugeiconsIcon icon={icon} strokeWidth={2} className="size-3.5" />
-      {label}
-    </label>
-  );
 }
 
 type ComposeMessageToolbarProps = {
@@ -407,68 +377,26 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
           </div>
         </div>
 
-        <div className="flex flex-col">
-          <div className="flex flex-col gap-2 border-b border-border px-5 py-4">
-            <ComposeFieldLabel icon={UserIcon} label="To" htmlFor="compose-to" />
-            <InputGroup>
-              <InputGroupInput
-                id="compose-to"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                placeholder="Comma-separated recipients"
-                disabled={pending}
-              />
-              <InputGroupAddon align="inline-end">
-                <HugeiconsIcon icon={ContactBookIcon} strokeWidth={2} />
-              </InputGroupAddon>
-            </InputGroup>
-          </div>
-
-          <div className="flex flex-col gap-2 border-b border-border px-5 py-4">
-            <ComposeFieldLabel
-              icon={Tag01Icon}
-              label="Subject"
-              htmlFor="compose-subject"
+        <ComposeFormFields
+          idPrefix="compose"
+          to={to}
+          onToChange={setTo}
+          subject={subject}
+          onSubjectChange={setSubject}
+          body={body}
+          onBodyChange={setBody}
+          disabled={pending}
+          bodyRef={textareaRef}
+          bodyClassName="min-h-52"
+          bodyExtra={
+            <ComposeMessageToolbar
+              body={body}
+              setBody={setBody}
+              textareaRef={textareaRef}
+              disabled={pending}
             />
-            <InputGroup>
-              <InputGroupInput
-                id="compose-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Subject"
-                disabled={pending}
-              />
-            </InputGroup>
-          </div>
-
-          <div className="flex flex-col gap-2 px-5 py-4">
-            <ComposeFieldLabel
-              icon={NoteIcon}
-              label="Message"
-              htmlFor="compose-body"
-            />
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                id="compose-body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Write your message…"
-                rows={10}
-                disabled={pending}
-                className={cn(
-                  "min-h-52 resize-y bg-input/20 pb-10 dark:bg-input/30",
-                )}
-              />
-              <ComposeMessageToolbar
-                body={body}
-                setBody={setBody}
-                textareaRef={textareaRef}
-                disabled={pending}
-              />
-            </div>
-          </div>
-        </div>
+          }
+        />
 
         {error ? (
           <div className="border-t border-border px-5 py-3">
