@@ -53,7 +53,14 @@ function ConnectionRow({
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-2">
-        <Badge variant={connected ? "secondary" : "outline"}>
+        <Badge
+          variant={connected ? "outline" : "destructive"}
+          className={
+            connected
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              : undefined
+          }
+        >
           {connected ? "Connected" : "Not connected"}
         </Badge>
         {!connected ? (
