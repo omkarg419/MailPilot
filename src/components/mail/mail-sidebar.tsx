@@ -13,7 +13,6 @@ import {
   SpamIcon,
 } from "@hugeicons/core-free-icons";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -28,8 +27,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-import { initials } from "./mail-utils";
-import { UserAccountMenu } from "./user-account-menu";
+import { SidebarUserFooter } from "./sidebar-user-footer";
 import { LABEL_NAMES, type MailboxLabel } from "./types";
 
 const MAIL_NAV: {
@@ -129,23 +127,11 @@ export function MailSidebar({
       </SidebarContent>
 
       <SidebarFooter className="p-4">
-        <div className="flex items-center gap-2 px-2">
-          <Avatar size="sm">
-            {userImage ? (
-              <AvatarImage src={userImage} alt={userName} />
-            ) : null}
-            <AvatarFallback className="text-xs font-semibold">
-              {initials(userName, userEmail)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium text-sidebar-foreground">
-              {userName || "Signed in"}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
-          </div>
-          <UserAccountMenu />
-        </div>
+        <SidebarUserFooter
+          userEmail={userEmail}
+          userName={userName}
+          userImage={userImage}
+        />
       </SidebarFooter>
     </Sidebar>
   );
