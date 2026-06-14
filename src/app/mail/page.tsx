@@ -7,7 +7,7 @@ import { MailClient } from "@/app/mail/mail-client";
 export default async function MailPage() {
   const session = await auth();
   if (!session?.user) {
-    redirect("/");
+    redirect("/signin");
   }
 
   return (
