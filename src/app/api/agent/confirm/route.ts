@@ -1,5 +1,6 @@
 import { auth } from "@/server/auth";
 import { executeOperation } from "@/server/agent/execute-operation";
+import { findCalendarConflict } from "@/server/calendar/conflicts";
 import { toGoogleCalendarEventTime } from "@/server/calendar/utils";
 import { buildRawMessage } from "@/server/gmail/utils";
 import type { AgentConfirmRequestBody } from "@/types/agent-chat";
@@ -78,6 +79,29 @@ export async function POST(req: Request) {
       ?.map((email) => email.trim())
       .filter(Boolean)
       .map((email) => ({ email }));
+
+    try {
+      const conflict = await findCalendarConflict(
+        tenantId,
+        calendarId,
+        start,
+        end,
+        timeZone,
+      );
+      if (conflict.conflict) {
+        return Response.json(
+          {
+            error: `This time slot is already booked (${conflict.title}). Choose a different time.`,
+            status: "failed",
+          },
+          { status: 409 },
+        );
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not verify calendar availability.";
+      return Response.json({ error: message, status: "failed" }, { status: 400 });
+    }
 
     const result = await executeOperation(tenantId, {
       plugin: "googlecalendar",
