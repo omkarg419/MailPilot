@@ -53,6 +53,12 @@ function ThreadMessagesSkeleton() {
   );
 }
 
+const headerOutlineButtonClass =
+  "hover:bg-muted hover:text-foreground dark:hover:bg-muted/70";
+
+const headerDestructiveButtonClass =
+  "hover:bg-destructive/20 dark:hover:bg-destructive/35";
+
 function ThreadViewHeader({
   subject,
   activeLabel,
@@ -92,6 +98,7 @@ function ThreadViewHeader({
           type="button"
           variant="outline"
           size="sm"
+          className={headerOutlineButtonClass}
           onClick={onReply}
           disabled={!actionsEnabled}
         >
@@ -103,6 +110,7 @@ function ThreadViewHeader({
             type="button"
             variant="outline"
             size="sm"
+            className={headerOutlineButtonClass}
             onClick={onRestore}
             disabled={!actionsEnabled || isRestorePending}
           >
@@ -114,6 +122,7 @@ function ThreadViewHeader({
             type="button"
             variant="destructive"
             size="sm"
+            className={headerDestructiveButtonClass}
             onClick={onDelete}
             disabled={!actionsEnabled || isDeletePending}
           >
@@ -125,6 +134,7 @@ function ThreadViewHeader({
           type="button"
           variant="outline"
           size="sm"
+          className={headerOutlineButtonClass}
           onClick={onMarkUnread}
           disabled={!actionsEnabled || isMarkUnreadPending}
         >
