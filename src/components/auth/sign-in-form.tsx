@@ -1,3 +1,6 @@
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Tick02Icon } from "@hugeicons/core-free-icons";
+
 import { signIn } from "@/server/auth";
 import { safeRedirectPath } from "@/lib/safe-redirect";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -10,6 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 function GoogleIcon() {
   return (
@@ -33,6 +38,12 @@ function GoogleIcon() {
     </svg>
   );
 }
+
+const FEATURES = [
+  "Gmail Search",
+  "AI Drafts",
+  "Calendar Assistant",
+] as const;
 
 const ERROR_MESSAGES: Record<string, string> = {
   OAuthSignin: "Could not start Google sign-in. Please try again.",
@@ -59,34 +70,63 @@ export function SignInForm({ redirectTo, error }: SignInFormProps) {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle className="text-xl font-extrabold tracking-tight">
+    <Card className="w-full max-w-md border-border/80 bg-card/95 shadow-xl backdrop-blur-sm border rounded-2xl overflow-hidden">
+      <CardHeader className="gap-3 pb-2 text-center">
+        <CardTitle className="text-3xl font-extrabold tracking-tight">
           MailPilot
         </CardTitle>
-        <CardDescription>
-          Sign in to connect Gmail and Google Calendar
+        <CardDescription className="text-sm leading-relaxed text-muted-foreground">
+          AI-first inbox for Gmail &amp; Calendar
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+
+      <CardContent className="flex flex-col gap-6 px-6 pb-8">
         {errorMessage ? (
           <Alert variant="destructive">
             <AlertTitle>Sign-in failed</AlertTitle>
             <AlertDescription>{errorMessage}</AlertDescription>
           </Alert>
         ) : null}
+
         <form action={signInWithGoogle}>
-          <Button type="submit" variant="default" className="w-full">
+          <Button
+            type="submit"
+            variant="default"
+            size="lg"
+            className={cn(
+              "h-11 w-full gap-2.5 rounded-full font-semibold shadow-sm",
+              "transition-all hover:bg-primary/90 hover:shadow-md active:scale-[0.98]",
+            )}
+          >
             <GoogleIcon />
             Sign in with Google
           </Button>
         </form>
-      </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-center text-xs text-muted-foreground">
-          You&apos;ll connect Gmail and Calendar after signing in.
+
+        <Separator className="bg-border/70" />
+
+        <ul className="flex flex-col gap-3">
+          {FEATURES.map((feature) => (
+            <li
+              key={feature}
+              className="flex items-center gap-3 text-sm text-foreground"
+            >
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <HugeiconsIcon icon={Tick02Icon} strokeWidth={2.5} className="size-3" />
+              </span>
+              {feature}
+            </li>
+          ))}
+        </ul>
+        <Separator className=" my-6 bg-border/70" />
+        <CardFooter className="justify-center  border-border/70 p-0">
+        <p className="w-full text-center text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          Trusted by builders
         </p>
       </CardFooter>
+      </CardContent>
+      
+      
     </Card>
   );
 }
