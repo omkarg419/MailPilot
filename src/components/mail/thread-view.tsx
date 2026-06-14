@@ -185,7 +185,7 @@ export function ThreadView({
         isRestorePending={isRestorePending}
       />
 
-      <ScrollArea className="min-h-0 flex-1 [scrollbar-gutter:stable]">
+      <ScrollArea className="min-h-0 flex-1 scrollbar-gutter-stable">
         {showError ? (
           <div className="flex items-center justify-center p-6">
             <Alert variant="destructive" className="max-w-md">
