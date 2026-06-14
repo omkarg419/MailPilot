@@ -1,7 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Attachment01Icon,
+  Cancel01Icon,
+  ContactBookIcon,
+  FloppyDiskIcon,
+  Link01Icon,
+  MailReplyIcon,
+  MailSend01Icon,
+  MinusSignIcon,
+  NoteIcon,
+  PencilEdit01Icon,
+  SmileIcon,
+  Tag01Icon,
+  UserIcon,
+} from "@hugeicons/core-free-icons";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { api } from "@/trpc/react";
 
 export type ComposeInitial = {
@@ -25,11 +58,33 @@ function parseRecipients(raw: string): string[] {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function ComposeFieldLabel({
+  icon,
+  label,
+  htmlFor,
+}: {
+  icon: typeof UserIcon;
+  label: string;
+  htmlFor: string;
+}) {
+  return (
+    <label
+      htmlFor={htmlFor}
+      className="flex items-center gap-2 text-xs font-medium text-muted-foreground"
+    >
+      <HugeiconsIcon icon={icon} strokeWidth={2} className="size-3.5" />
+      {label}
+    </label>
+  );
+}
+
 export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const isReply = !!initial?.threadId;
 
   useEffect(() => {
     if (initial) {
@@ -49,8 +104,6 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
     onError: (e) => setError(e.message),
   });
 
-  if (!initial) return null;
-
   const recipients = parseRecipients(to);
   const invalid = recipients.filter((r) => !EMAIL_RE.test(r));
   const pending = sendEmail.isPending || createDraft.isPending;
@@ -69,7 +122,7 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
   };
 
   const handleSend = () => {
-    if (!validate()) return;
+    if (!initial || !validate()) return;
     sendEmail.mutate({
       to: recipients,
       subject,
@@ -79,7 +132,7 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
   };
 
   const handleDraft = () => {
-    if (!validate()) return;
+    if (!initial || !validate()) return;
     createDraft.mutate({
       to: recipients,
       subject,
@@ -89,70 +142,171 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        aria-label="Close compose"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
-          <h2 className="text-sm font-semibold text-zinc-200">
-            {initial.threadId ? "Reply" : "New message"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
-          >
-            ✕
-          </button>
+    <Dialog
+      open={!!initial}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="gap-0 overflow-hidden p-0 sm:max-w-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              icon={isReply ? MailReplyIcon : PencilEdit01Icon}
+              strokeWidth={2}
+              className="size-4 text-primary"
+            />
+            <DialogTitle className="text-sm font-semibold">
+              {isReply ? "Reply" : "New message"}
+            </DialogTitle>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              aria-label="Minimize"
+            >
+              <HugeiconsIcon icon={MinusSignIcon} strokeWidth={2} />
+            </Button>
+            <DialogClose
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                />
+              }
+            >
+              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+              <span className="sr-only">Close</span>
+            </DialogClose>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-px bg-zinc-800">
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="To (comma separated)"
-            className="bg-zinc-900 px-5 py-3 text-sm text-zinc-100 outline-none placeholder:text-zinc-600"
-          />
-          <input
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject"
-            className="bg-zinc-900 px-5 py-3 text-sm text-zinc-100 outline-none placeholder:text-zinc-600"
-          />
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Write your message…"
-            rows={10}
-            className="resize-none bg-zinc-900 px-5 py-3 text-sm leading-relaxed text-zinc-100 outline-none placeholder:text-zinc-600"
-          />
+        <div className="flex flex-col">
+          <div className="flex flex-col gap-2 border-b border-border px-5 py-4">
+            <ComposeFieldLabel icon={UserIcon} label="To" htmlFor="compose-to" />
+            <InputGroup>
+              <InputGroupInput
+                id="compose-to"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="Comma-separated recipients"
+                disabled={pending}
+              />
+              <InputGroupAddon align="inline-end">
+                <HugeiconsIcon icon={ContactBookIcon} strokeWidth={2} />
+              </InputGroupAddon>
+            </InputGroup>
+          </div>
+
+          <div className="flex flex-col gap-2 border-b border-border px-5 py-4">
+            <ComposeFieldLabel
+              icon={Tag01Icon}
+              label="Subject"
+              htmlFor="compose-subject"
+            />
+            <InputGroup>
+              <InputGroupInput
+                id="compose-subject"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Subject"
+                disabled={pending}
+              />
+            </InputGroup>
+          </div>
+
+          <div className="flex flex-col gap-2 px-5 py-4">
+            <ComposeFieldLabel
+              icon={NoteIcon}
+              label="Message"
+              htmlFor="compose-body"
+            />
+            <div className="relative">
+              <Textarea
+                id="compose-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Write your message…"
+                rows={10}
+                disabled={pending}
+                className={cn(
+                  "min-h-52 resize-y bg-input/20 pb-10 dark:bg-input/30",
+                )}
+              />
+              <div className="pointer-events-none absolute right-2 bottom-2 flex items-center gap-0.5">
+                <InputGroupButton
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  tabIndex={-1}
+                  aria-hidden
+                  disabled
+                >
+                  <HugeiconsIcon icon={SmileIcon} strokeWidth={2} />
+                </InputGroupButton>
+                <InputGroupButton
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  tabIndex={-1}
+                  aria-hidden
+                  disabled
+                >
+                  <HugeiconsIcon icon={Attachment01Icon} strokeWidth={2} />
+                </InputGroupButton>
+                <InputGroupButton
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  tabIndex={-1}
+                  aria-hidden
+                  disabled
+                >
+                  <HugeiconsIcon icon={Link01Icon} strokeWidth={2} />
+                </InputGroupButton>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {error && (
-          <p className="border-t border-red-900/50 bg-red-950/40 px-5 py-2 text-xs text-red-400">
-            {error}
-          </p>
-        )}
+        {error ? (
+          <div className="border-t border-border px-5 py-3">
+            <Alert variant="destructive">
+              <AlertTitle>Could not send</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          </div>
+        ) : null}
 
-        <div className="flex items-center justify-between border-t border-zinc-800 px-5 py-3">
-          <button
+        <DialogFooter className="flex-row justify-between border-t border-border bg-muted/20 px-5 py-4 sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
             onClick={handleDraft}
             disabled={pending}
-            className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 disabled:opacity-50"
           >
+            <HugeiconsIcon icon={FloppyDiskIcon} strokeWidth={2} />
             {createDraft.isPending ? "Saving…" : "Save draft"}
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            variant="default"
             onClick={handleSend}
             disabled={pending}
-            className="rounded-full bg-linear-to-r from-indigo-500 to-violet-500 px-6 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:from-indigo-400 hover:to-violet-400 disabled:opacity-50"
           >
+            <HugeiconsIcon icon={MailSend01Icon} strokeWidth={2} />
             {sendEmail.isPending ? "Sending…" : "Send"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
