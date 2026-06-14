@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
 import { MailSidebar } from "@/components/mail/mail-sidebar";
 import { ThreadList } from "@/components/mail/thread-list";
@@ -42,7 +43,10 @@ export function MailClient({
 
   const threadQuery = api.gmail.getThread.useQuery(
     { threadId: selectedThreadId ?? "" },
-    { enabled: !!selectedThreadId },
+    {
+      enabled: !!selectedThreadId,
+      placeholderData: keepPreviousData,
+    },
   );
 
   const markRead = api.gmail.markRead.useMutation({
@@ -96,7 +100,7 @@ export function MailClient({
         userImage={userImage}
       />
 
-      <div className="flex min-h-0 min-w-0 flex-1">
+      <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
         <ThreadList
           threads={threads}
           isLoading={threadsQuery.isLoading}
@@ -115,6 +119,7 @@ export function MailClient({
         <ThreadView
           thread={threadQuery.data}
           isLoading={threadQuery.isLoading}
+          isFetching={threadQuery.isFetching}
           isError={threadQuery.isError}
           activeLabel={label}
           selectedThreadId={selectedThreadId}

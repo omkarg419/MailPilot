@@ -2,6 +2,8 @@ import "server-only";
 
 import type { Message, MessagePart } from "@corsair-dev/gmail";
 
+import { sanitizeEmailHtml } from "./sanitize-html";
+
 /** Decode a base64url string (Gmail encodes message bodies this way). */
 export function decodeBase64Url(data: string): string {
   const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
@@ -108,7 +110,7 @@ export function normalizeMessage(message: Message): MessageView {
     subject,
     date: Number.isFinite(dateMs) ? new Date(dateMs).toISOString() : null,
     snippet: message.snippet ?? "",
-    bodyHtml: html,
+    bodyHtml: sanitizeEmailHtml(html),
     bodyText: text,
     unread: message.labelIds?.includes("UNREAD") ?? false,
   };
