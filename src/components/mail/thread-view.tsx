@@ -40,6 +40,7 @@ export type ThreadViewProps = {
   onMarkUnread: () => void;
   isDeletePending: boolean;
   isRestorePending: boolean;
+  isMarkUnreadPending: boolean;
   selectedThreadId: string | null;
 };
 
@@ -62,6 +63,7 @@ function ThreadViewHeader({
   onMarkUnread,
   isDeletePending,
   isRestorePending,
+  isMarkUnreadPending,
 }: {
   subject: string | undefined;
   activeLabel: MailboxLabel;
@@ -72,6 +74,7 @@ function ThreadViewHeader({
   onMarkUnread: () => void;
   isDeletePending: boolean;
   isRestorePending: boolean;
+  isMarkUnreadPending: boolean;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-4 border-b border-border px-6 py-4">
@@ -123,10 +126,10 @@ function ThreadViewHeader({
           variant="ghost"
           size="sm"
           onClick={onMarkUnread}
-          disabled={!actionsEnabled}
+          disabled={!actionsEnabled || isMarkUnreadPending}
         >
           <HugeiconsIcon icon={InboxUnreadIcon} strokeWidth={2} />
-          Mark unread
+          {isMarkUnreadPending ? "Marking…" : "Mark unread"}
         </Button>
       </div>
     </header>
@@ -145,6 +148,7 @@ export function ThreadView({
   onMarkUnread,
   isDeletePending,
   isRestorePending,
+  isMarkUnreadPending,
   selectedThreadId,
 }: ThreadViewProps) {
   if (!selectedThreadId) {
@@ -183,6 +187,7 @@ export function ThreadView({
         onMarkUnread={onMarkUnread}
         isDeletePending={isDeletePending}
         isRestorePending={isRestorePending}
+        isMarkUnreadPending={isMarkUnreadPending}
       />
 
       <ScrollArea className="min-h-0 flex-1 scrollbar-gutter-stable">

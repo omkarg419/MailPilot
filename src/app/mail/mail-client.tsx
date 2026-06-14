@@ -35,11 +35,13 @@ export function MailClient({
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const threadsQuery = api.gmail.listThreads.useQuery({
+  const listThreadsInput = {
     label,
     q: query || undefined,
     refresh: refreshing,
-  });
+  };
+
+  const threadsQuery = api.gmail.listThreads.useQuery(listThreadsInput);
 
   const threadQuery = api.gmail.getThread.useQuery(
     { threadId: selectedThreadId ?? "" },
@@ -50,7 +52,31 @@ export function MailClient({
   );
 
   const markRead = api.gmail.markRead.useMutation({
-    onSuccess: () => void utils.gmail.listThreads.invalidate(),
+    onMutate: async ({ threadId, read }) => {
+      const input = { label, q: query || undefined, refresh: refreshing };
+      await utils.gmail.listThreads.cancel(input);
+
+      const previous = utils.gmail.listThreads.getData(input);
+
+      utils.gmail.listThreads.setData(input, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          threads: old.threads.map((thread) =>
+            thread.threadId === threadId
+              ? { ...thread, unread: !read }
+              : thread,
+          ),
+        };
+      });
+
+      return { previous, input };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous && context.input) {
+        utils.gmail.listThreads.setData(context.input, context.previous);
+      }
+    },
   });
   const trash = api.gmail.trash.useMutation({
     onSuccess: () => {
@@ -150,6 +176,9 @@ export function MailClient({
           }}
           isDeletePending={trash.isPending}
           isRestorePending={untrash.isPending}
+          isMarkUnreadPending={
+            markRead.isPending && markRead.variables?.read === false
+          }
         />
       </div>
 
