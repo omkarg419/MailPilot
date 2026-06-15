@@ -484,9 +484,9 @@ export function AgentChat({
             <p className="mt-3 text-lg text-muted-foreground">
               What can I help you with today?
             </p>
-            <p className="mt-2 text-sm text-muted-foreground/80">
+            {/* <p className="mt-2 text-sm text-muted-foreground/80">
               Natural language control for Gmail and Google Calendar.
-            </p>
+            </p> */}
           </div>
           {inputArea}
         </div>

@@ -32,11 +32,17 @@ function ConnectCard({
   href,
   connected,
 }: ConnectCardProps) {
+  const actionButtonBase = cn(
+    "inline-flex h-10 min-w-[8.5rem] items-center justify-center gap-2",
+    "rounded-[0.75rem] px-5 text-sm font-semibold",
+    "transition-all active:scale-[0.98]",
+  );
+
   return (
     <div className="flex flex-col gap-4 border border-border bg-card p-6 transition-colors hover:border-muted-foreground/30">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center bg-muted text-foreground">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-[0.625rem] bg-muted text-foreground">
             <HugeiconsIcon icon={icon} strokeWidth={2} className="size-4" />
           </div>
           <div className="min-w-0">
@@ -49,7 +55,7 @@ function ConnectCard({
         {connected ? (
           <Badge
             variant="outline"
-            className="shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            className="shrink-0 rounded-[0.5rem] border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-600 dark:text-emerald-400"
           >
             <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} className="size-3" />
             Connected
@@ -57,20 +63,31 @@ function ConnectCard({
         ) : null}
       </div>
 
-      {connected ? (
-        <span
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "w-fit cursor-default opacity-60",
-          )}
-        >
-          Done
-        </span>
-      ) : (
-        <Link href={href} className={cn(buttonVariants(), "w-fit")}>
-          Connect
-        </Link>
-      )}
+      <div className="pt-1">
+        {connected ? (
+          <span
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              actionButtonBase,
+              "w-fit cursor-default border-emerald-500/25 bg-emerald-500/5 text-emerald-700 opacity-90 dark:text-emerald-400",
+            )}
+          >
+            <HugeiconsIcon icon={Tick02Icon} strokeWidth={2} className="size-4" />
+            Connected
+          </span>
+        ) : (
+          <Link
+            href={href}
+            className={cn(
+              buttonVariants({ variant: "default" }),
+              actionButtonBase,
+              "w-fit shadow-sm hover:bg-primary/90 hover:shadow-md",
+            )}
+          >
+            Connect
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
