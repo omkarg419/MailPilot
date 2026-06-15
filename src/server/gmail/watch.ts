@@ -163,17 +163,45 @@ function extractGmailPushEmail(
   }
 }
 
+async function findUserIdsForEmail(email: string): Promise<string[]> {
+  const rows = await db.query.users.findMany({
+    where: sql`lower(${users.email}) = ${email}`,
+    columns: { id: true },
+  });
+  return rows.map((row) => row.id);
+}
+
+async function filterTenantsWithGmailConnected(
+  tenantIds: string[],
+): Promise<string[]> {
+  const connected: string[] = [];
+  for (const tenantId of tenantIds) {
+    const status = await corsair.manage.connectionStatus.get({ tenantId });
+    if (status.gmail === "connected") {
+      connected.push(tenantId);
+    }
+  }
+  return connected;
+}
+
+/** Tenants that should receive inbox SSE updates for this Gmail address. */
+export async function resolveGmailNotifyTenantIds(
+  body: string | Record<string, unknown>,
+): Promise<string[]> {
+  const email = extractGmailPushEmail(body);
+  if (!email) return [];
+
+  const userIds = await findUserIdsForEmail(email);
+  if (userIds.length === 0) return [];
+
+  const connected = await filterTenantsWithGmailConnected(userIds);
+  return connected.length > 0 ? connected : userIds;
+}
+
 /** Map a Gmail Pub/Sub notification to the NextAuth user id (Corsair tenant). */
 export async function resolveTenantIdFromGmailWebhook(
   body: string | Record<string, unknown>,
 ): Promise<string | null> {
-  const email = extractGmailPushEmail(body);
-  if (!email) return null;
-
-  const row = await db.query.users.findFirst({
-    where: sql`lower(${users.email}) = ${email}`,
-    columns: { id: true },
-  });
-
-  return row?.id ?? null;
+  const tenantIds = await resolveGmailNotifyTenantIds(body);
+  return tenantIds[0] ?? null;
 }

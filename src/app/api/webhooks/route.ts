@@ -3,7 +3,11 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { corsair } from "@/server/corsair";
-import { resolveWebhookTenantId } from "@/server/webhooks/resolve-tenant";
+import { notifyMailInboxChangedForTenants } from "@/server/realtime/mail-events";
+import {
+  resolveWebhookNotifyTenantIds,
+  resolveWebhookTenantId,
+} from "@/server/webhooks/resolve-tenant";
 
 export async function POST(request: NextRequest) {
   const headers: Record<string, string> = {};
@@ -43,6 +47,11 @@ export async function POST(request: NextRequest) {
     "tenant:",
     tenantId,
   );
+
+  if (result.plugin === "gmail") {
+    const notifyTenantIds = await resolveWebhookNotifyTenantIds(body);
+    notifyMailInboxChangedForTenants(notifyTenantIds);
+  }
 
   const responseHeaders = result.responseHeaders;
   const nextHeaders = new Headers();

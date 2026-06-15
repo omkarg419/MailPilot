@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { MailSidebar } from "@/components/mail/mail-sidebar";
@@ -8,6 +8,7 @@ import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadView } from "@/components/mail/thread-view";
 import type { MailboxLabel } from "@/components/mail/types";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { useMailRealtimeInbox } from "@/hooks/use-mail-realtime";
 import { api } from "@/trpc/react";
 import { ComposeModal, type ComposeInitial } from "./compose-modal";
 
@@ -29,6 +30,13 @@ export function MailClient({
 
   const utils = api.useUtils();
 
+  const refreshLive = useCallback(() => {
+    setRefreshing(true);
+    void utils.gmail.listThreads.invalidate();
+  }, [utils]);
+
+  useMailRealtimeInbox(refreshLive);
+
   // Debounce the search box → Gmail `q`.
   useEffect(() => {
     const t = setTimeout(() => setQuery(searchInput.trim()), 350);
@@ -41,7 +49,9 @@ export function MailClient({
     refresh: refreshing,
   };
 
-  const threadsQuery = api.gmail.listThreads.useQuery(listThreadsInput);
+  const threadsQuery = api.gmail.listThreads.useQuery(listThreadsInput, {
+    staleTime: 0,
+  });
 
   const threadQuery = api.gmail.getThread.useQuery(
     { threadId: selectedThreadId ?? "" },
@@ -91,10 +101,7 @@ export function MailClient({
     },
   });
 
-  const refresh = () => {
-    setRefreshing(true);
-    void utils.gmail.listThreads.invalidate();
-  };
+  const refresh = refreshLive;
 
   const threads = threadsQuery.data?.threads ?? [];
 

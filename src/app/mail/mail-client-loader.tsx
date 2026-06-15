@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 
+import { useMailRealtimeConnection } from "@/hooks/use-mail-realtime";
+
 const MailClient = dynamic(
   () => import("@/app/mail/mail-client").then((mod) => mod.MailClient),
   {
@@ -21,5 +23,6 @@ type MailClientLoaderProps = {
 };
 
 export function MailClientLoader(props: MailClientLoaderProps) {
+  useMailRealtimeConnection();
   return <MailClient {...props} />;
 }
