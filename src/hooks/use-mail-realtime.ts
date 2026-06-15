@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-/** Gmail watch notifications often arrive before threads.list includes the new message. */
-const REFRESH_DELAYS_MS = [2_000, 5_000] as const;
+/** Gmail push often arrives before threads.list includes the new message. */
+const REFRESH_DELAYS_MS = [0, 1_500, 4_000] as const;
 
 export const MAIL_INBOX_CHANGED_EVENT = "mailpilot:inbox_changed";
 
