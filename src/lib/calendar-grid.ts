@@ -305,17 +305,29 @@ export function eventsOnDayForSidePanel(
   return [...upcoming, ...past];
 }
 
+/** Local calendar day an event starts on (for grid scroll / day sync). */
+export function getEventLocalDay(event: CalendarEventView): Date {
+  if (event.allDay) {
+    return startOfDay(new Date(`${event.start.slice(0, 10)}T12:00:00`));
+  }
+  const start = parseEventInstant(event.start, false);
+  return start ? startOfDay(start) : startOfDay(new Date());
+}
+
 /** Scroll offset (px) to bring an event into view on the time grid. */
 export function gridScrollTopForEvent(
   event: CalendarEventView,
-  day: Date,
+  day?: Date,
 ): number {
   if (event.allDay) return 0;
-  const seg = segmentForDay(event, day);
-  if (seg) return msToGridTop(seg.startMs, day);
+
+  const eventDay = day ?? getEventLocalDay(event);
+  const seg = segmentForDay(event, eventDay);
+  if (seg) return msToGridTop(seg.startMs, eventDay);
+
   const start = parseEventInstant(event.start, false);
-  if (start && isSameDay(start, day)) {
-    return msToGridTop(start.getTime(), day);
+  if (start && isSameDay(start, eventDay)) {
+    return msToGridTop(start.getTime(), eventDay);
   }
   return 0;
 }

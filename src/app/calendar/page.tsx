@@ -1,7 +1,7 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { CalendarClient } from "@/app/calendar/calendar-client";
+import { CalendarClientLoader } from "@/app/calendar/calendar-client-loader";
 import { auth } from "@/server/auth";
 import { getConnectionFlags } from "@/server/corsair";
 
@@ -18,7 +18,7 @@ export default async function CalendarPage() {
   const { calendar } = await getConnectionFlags(session.user.id);
 
   return (
-    <CalendarClient
+    <CalendarClientLoader
       userEmail={session.user.email ?? ""}
       userName={session.user.name ?? ""}
       userImage={session.user.image ?? ""}

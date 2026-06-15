@@ -28,6 +28,7 @@ import {
   formatTimeLabelFromGridOffset,
   getHourMarkers,
   getWeekDays,
+  getEventLocalDay,
   gridScrollTopForEvent,
   isToday,
   layoutDayEvents,
@@ -137,11 +138,12 @@ type CalendarTimeGridProps = {
   weekStart: Date;
   selectedDay: Date;
   events: CalendarEventView[] | undefined;
+  isEventsFetching?: boolean;
   isLoading: boolean;
   isError: boolean;
   errorMessage?: string;
   focusEventId?: string | null;
-  scrollToEventId?: string | null;
+  scrollTarget?: { eventId: string; seq: number } | null;
   onScrollToEventComplete?: () => void;
   onEventClick: (event: CalendarEventView) => void;
   onSlotClick: (start: string, end: string) => void;
@@ -188,16 +190,19 @@ export function CalendarTimeGrid({
   weekStart,
   selectedDay,
   events,
+  isEventsFetching = false,
   isLoading,
   isError,
   errorMessage,
   focusEventId = null,
-  scrollToEventId = null,
+  scrollTarget = null,
   onScrollToEventComplete,
   onEventClick,
   onSlotClick,
 }: CalendarTimeGridProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const scrollTargetRef = useRef(scrollTarget);
+  scrollTargetRef.current = scrollTarget;
   const [nowTop, setNowTop] = useState<number | null>(() => nowLineTopPx());
   const [cursorGuide, setCursorGuide] = useState<{
     top: number;
@@ -244,35 +249,55 @@ export function CalendarTimeGrid({
 
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el || scrollToEventId) return;
+    if (!el) return;
+    // Only reset scroll when the visible week changes — never after scroll-to-event finishes.
+    if (scrollTargetRef.current) return;
+
     const defaultScroll = Math.max(
       0,
       8 * HOUR_HEIGHT_PX + GRID_SCROLL_PADDING_PX - el.clientHeight / 2,
     );
     el.scrollTop = defaultScroll;
-  }, [weekStart, scrollToEventId]);
+  }, [weekStart]);
 
   useEffect(() => {
-    if (!scrollToEventId || !events?.length) return;
-    const event = events.find((e) => e.id === scrollToEventId);
+    if (!scrollTarget) return;
+    if (events === undefined) return;
+
+    const event = events.find((e) => e.id === scrollTarget.eventId);
     if (!event) {
+      if (isEventsFetching) return;
       onScrollToEventComplete?.();
       return;
     }
 
-    const top = gridScrollTopForEvent(event, selectedDay);
-    const el = viewportRef.current;
-    if (!el) {
-      onScrollToEventComplete?.();
-      return;
-    }
+    const eventDay = getEventLocalDay(event);
+    const top = gridScrollTopForEvent(event, eventDay);
+    let cancelled = false;
 
-    const frame = requestAnimationFrame(() => {
-      el.scrollTop = Math.max(0, top - el.clientHeight / 3);
-      onScrollToEventComplete?.();
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (cancelled) return;
+        const el = viewportRef.current;
+        if (!el) {
+          onScrollToEventComplete?.();
+          return;
+        }
+        el.scrollTop = Math.max(
+          0,
+          top + GRID_SCROLL_PADDING_PX - el.clientHeight / 3,
+        );
+        onScrollToEventComplete?.();
+      });
     });
-    return () => cancelAnimationFrame(frame);
-  }, [scrollToEventId, events, selectedDay, onScrollToEventComplete]);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [scrollTarget, events, isEventsFetching, onScrollToEventComplete]);
 
   function gridOffsetY(clientOffsetY: number): number {
     return Math.max(
@@ -309,7 +334,7 @@ export function CalendarTimeGrid({
     setCursorGuide(null);
   }
 
-  if (isLoading) {
+  if (isLoading && events === undefined) {
     return <CalendarGridSkeleton />;
   }
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { keepPreviousData } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
@@ -16,7 +17,7 @@ import type { EventFormState } from "@/components/calendar/calendar-event-dialog
 import { CalendarSidePanel } from "@/components/calendar/calendar-side-panel";
 import { CalendarTimeGrid } from "@/components/calendar/calendar-time-grid";
 import { cn } from "@/lib/utils";
-import { formatMonthYear, getWeekDays, isSameDay } from "@/lib/calendar-grid";
+import { formatMonthYear, getEventLocalDay, getWeekDays, isSameDay } from "@/lib/calendar-grid";
 import {
   fromDatetimeLocalValue,
   getWeekRange,
@@ -52,7 +53,10 @@ export function CalendarWeekView({
   const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()));
   const [focusEventId, setFocusEventId] = useState<string | null>(null);
-  const [scrollToEventId, setScrollToEventId] = useState<string | null>(null);
+  const [scrollTarget, setScrollTarget] = useState<{
+    eventId: string;
+    seq: number;
+  } | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEventView | null>(null);
   const [form, setForm] = useState<EventFormState>(emptyForm);
@@ -70,11 +74,12 @@ export function CalendarWeekView({
   const utils = api.useUtils();
   const eventsQuery = api.calendar.listEvents.useQuery(range, {
     enabled: calendarConnected,
+    placeholderData: keepPreviousData,
   });
 
   const createEvent = api.calendar.createEvent.useMutation({
     onSuccess: async () => {
-      await utils.calendar.listEvents.invalidate();
+      await utils.calendar.listEvents.invalidate(range);
       setDialogOpen(false);
       setForm(emptyForm());
       setEditingEvent(null);
@@ -84,7 +89,7 @@ export function CalendarWeekView({
 
   const updateEvent = api.calendar.updateEvent.useMutation({
     onSuccess: async () => {
-      await utils.calendar.listEvents.invalidate();
+      await utils.calendar.listEvents.invalidate(range);
       setDialogOpen(false);
       setForm(emptyForm());
       setEditingEvent(null);
@@ -93,14 +98,27 @@ export function CalendarWeekView({
   });
 
   const deleteEvent = api.calendar.deleteEvent.useMutation({
+    onMutate: async ({ eventId }) => {
+      await utils.calendar.listEvents.cancel(range);
+      const previous = utils.calendar.listEvents.getData(range);
+      utils.calendar.listEvents.setData(range, (old) =>
+        old ? old.filter((event) => event.id !== eventId) : old,
+      );
+      return { previous };
+    },
+    onError: (e, _vars, context) => {
+      if (context?.previous) {
+        utils.calendar.listEvents.setData(range, context.previous);
+      }
+      setFormError(e.message);
+    },
     onSuccess: async () => {
-      await utils.calendar.listEvents.invalidate();
       setDialogOpen(false);
       setForm(emptyForm());
       setEditingEvent(null);
       setFocusEventId(null);
+      await utils.calendar.listEvents.invalidate(range);
     },
-    onError: (e) => setFormError(e.message),
   });
 
   function openCreateWithTimes(start: string, end: string) {
@@ -176,13 +194,22 @@ export function CalendarWeekView({
     [weekStart],
   );
 
-  const handleSidePanelEvent = useCallback((event: CalendarEventView) => {
-    setFocusEventId(event.id);
-    setScrollToEventId(event.id);
-  }, []);
+  const handleSidePanelEvent = useCallback(
+    (event: CalendarEventView) => {
+      const eventDay = startOfLocalDay(getEventLocalDay(event));
+      setSelectedDay(eventDay);
+      const inWeek = getWeekDays(weekStart).some((wd) => isSameDay(wd, eventDay));
+      if (!inWeek) {
+        setWeekStart(startOfWeekMonday(eventDay));
+      }
+      setFocusEventId(event.id);
+      setScrollTarget({ eventId: event.id, seq: Date.now() });
+    },
+    [weekStart],
+  );
 
   const handleScrollToEventComplete = useCallback(() => {
-    setScrollToEventId(null);
+    setScrollTarget(null);
   }, []);
 
   function shiftWeek(deltaDays: number) {
@@ -269,11 +296,12 @@ export function CalendarWeekView({
           weekStart={weekStart}
           selectedDay={selectedDay}
           events={eventsQuery.data}
+          isEventsFetching={eventsQuery.isFetching}
           isLoading={eventsQuery.isLoading}
           isError={eventsQuery.isError}
           errorMessage={eventsQuery.error?.message}
           focusEventId={focusEventId}
-          scrollToEventId={scrollToEventId}
+          scrollTarget={scrollTarget}
           onScrollToEventComplete={handleScrollToEventComplete}
           onEventClick={openEdit}
           onSlotClick={openCreateWithTimes}

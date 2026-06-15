@@ -9,7 +9,6 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import {
   useCalendarRealtime,
   useInboxNewCount,
-  useMailRealtimeConnection,
 } from "@/hooks/use-mail-realtime";
 import { api } from "@/trpc/react";
 
@@ -29,8 +28,6 @@ export function CalendarClient({
   const router = useRouter();
   const utils = api.useUtils();
   const inboxNewCount = useInboxNewCount(false);
-
-  useMailRealtimeConnection();
 
   const refreshCalendar = useCallback(() => {
     void utils.calendar.listEvents.invalidate();
