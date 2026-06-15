@@ -62,6 +62,19 @@ export function MailClient({
     q: query || undefined,
   };
 
+  const refreshThreadLists = useCallback(
+    (labels: MailboxLabel[] = [label, "TRASH"]) => {
+      for (const mailboxLabel of labels) {
+        void utils.gmail.listThreads.fetch({
+          label: mailboxLabel,
+          q: mailboxLabel === label ? query || undefined : undefined,
+          refresh: true,
+        });
+      }
+    },
+    [label, query, utils],
+  );
+
   const threadsQuery = api.gmail.listThreads.useQuery(listThreadsInput, {
     staleTime: 0,
   });
@@ -102,15 +115,57 @@ export function MailClient({
     },
   });
   const trash = api.gmail.trash.useMutation({
-    onSuccess: () => {
+    onMutate: async ({ threadId }) => {
+      await utils.gmail.listThreads.cancel(listThreadsInput);
+
+      const previous = utils.gmail.listThreads.getData(listThreadsInput);
+
+      utils.gmail.listThreads.setData(listThreadsInput, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          threads: old.threads.filter((thread) => thread.threadId !== threadId),
+        };
+      });
+
       setSelectedThreadId(null);
-      void utils.gmail.listThreads.invalidate();
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        utils.gmail.listThreads.setData(listThreadsInput, context.previous);
+      }
+    },
+    onSettled: () => {
+      refreshThreadLists([label, "TRASH"]);
     },
   });
   const untrash = api.gmail.untrash.useMutation({
-    onSuccess: () => {
+    onMutate: async ({ threadId }) => {
+      await utils.gmail.listThreads.cancel(listThreadsInput);
+
+      const previous = utils.gmail.listThreads.getData(listThreadsInput);
+
+      utils.gmail.listThreads.setData(listThreadsInput, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          threads: old.threads.filter((thread) => thread.threadId !== threadId),
+        };
+      });
+
       setSelectedThreadId(null);
-      void utils.gmail.listThreads.invalidate();
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        utils.gmail.listThreads.setData(listThreadsInput, context.previous);
+      }
+    },
+    onSettled: () => {
+      refreshThreadLists([label, "INBOX"]);
     },
   });
 
@@ -177,14 +232,14 @@ export function MailClient({
             })
           }
           onDelete={() => {
-            if (threadQuery.data) {
-              trash.mutate({ threadId: threadQuery.data.threadId });
-            }
+            const threadId =
+              threadQuery.data?.threadId ?? selectedThreadId ?? null;
+            if (threadId) trash.mutate({ threadId });
           }}
           onRestore={() => {
-            if (threadQuery.data) {
-              untrash.mutate({ threadId: threadQuery.data.threadId });
-            }
+            const threadId =
+              threadQuery.data?.threadId ?? selectedThreadId ?? null;
+            if (threadId) untrash.mutate({ threadId });
           }}
           onMarkUnread={() => {
             if (threadQuery.data) {
