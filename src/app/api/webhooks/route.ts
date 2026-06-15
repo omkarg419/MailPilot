@@ -12,22 +12,35 @@ import {
   resolveWebhookTenantId,
 } from "@/server/webhooks/resolve-tenant";
 
+async function parseWebhookBody(
+  request: NextRequest,
+): Promise<string | Record<string, unknown>> {
+  const text = await request.text();
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+
+  const contentType = request.headers.get("content-type");
+  if (contentType?.includes("application/json")) {
+    try {
+      return JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      console.warn("[webhooks] Invalid JSON body");
+      return {};
+    }
+  }
+
+  return text;
+}
+
 export async function POST(request: NextRequest) {
   const headers: Record<string, string> = {};
   request.headers.forEach((value, key) => {
     headers[key] = value;
   });
 
-  const contentType = request.headers.get("content-type");
-
   let body: string | Record<string, unknown>;
 
-  if (contentType?.includes("application/json")) {
-    body = await request.json();
-  } else {
-    const text = await request.text();
-    body = text && text.trim() ? text : {};
-  }
+  body = await parseWebhookBody(request);
 
   const tenantId = await resolveWebhookTenantId(body, headers);
   if (!tenantId) {
@@ -55,7 +68,12 @@ export async function POST(request: NextRequest) {
     const notifyTenantIds = await resolveWebhookNotifyTenantIds(body);
     notifyMailInboxChangedForTenants(notifyTenantIds);
   } else if (result.plugin === "googlecalendar") {
-    notifyCalendarChangedForTenants([tenantId]);
+    const resourceState =
+      headers["x-goog-resource-state"] ?? headers["X-Goog-Resource-State"];
+    // Google sends a one-time "sync" ping when a watch channel is created.
+    if (resourceState !== "sync") {
+      notifyCalendarChangedForTenants([tenantId]);
+    }
   }
 
   const responseHeaders = result.responseHeaders;

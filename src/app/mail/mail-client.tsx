@@ -25,18 +25,31 @@ export function MailClient({
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
   const [compose, setCompose] = useState<ComposeInitial | null>(null);
 
   const utils = api.useUtils();
 
-  const refreshLive = useCallback(() => {
-    setRefreshing(true);
-    void utils.gmail.listThreads.invalidate();
+  const fetchInboxThreads = useCallback(async () => {
+    const data = await utils.gmail.listThreads.fetch({
+      label: "INBOX",
+      refresh: true,
+    });
+    return data.threads;
   }, [utils]);
 
+  const refreshLive = useCallback(() => {
+    void utils.gmail.listThreads.fetch({
+      label,
+      q: query || undefined,
+      refresh: true,
+    });
+  }, [label, query, utils]);
+
   useMailRealtimeInbox(refreshLive);
-  const inboxNewCount = useInboxNewCount(label === "INBOX");
+  const inboxNewCount = useInboxNewCount(
+    label === "INBOX",
+    fetchInboxThreads,
+  );
 
   // Debounce the search box → Gmail `q`.
   useEffect(() => {
@@ -47,7 +60,6 @@ export function MailClient({
   const listThreadsInput = {
     label,
     q: query || undefined,
-    refresh: refreshing,
   };
 
   const threadsQuery = api.gmail.listThreads.useQuery(listThreadsInput, {
@@ -64,7 +76,7 @@ export function MailClient({
 
   const markRead = api.gmail.markRead.useMutation({
     onMutate: async ({ threadId, read }) => {
-      const input = { label, q: query || undefined, refresh: refreshing };
+      const input = { label, q: query || undefined };
       await utils.gmail.listThreads.cancel(input);
 
       const previous = utils.gmail.listThreads.getData(input);
@@ -120,7 +132,6 @@ export function MailClient({
   const onLabelChange = (nextLabel: MailboxLabel) => {
     setLabel(nextLabel);
     setSelectedThreadId(null);
-    setRefreshing(false);
   };
 
   return (
@@ -144,7 +155,6 @@ export function MailClient({
           searchInput={searchInput}
           onSearchChange={(value) => {
             setSearchInput(value);
-            setRefreshing(false);
           }}
           onRefresh={refresh}
           onSelectThread={selectThread}

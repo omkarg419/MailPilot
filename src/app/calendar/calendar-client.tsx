@@ -27,7 +27,16 @@ export function CalendarClient({
 }: CalendarClientProps) {
   const router = useRouter();
   const utils = api.useUtils();
-  const inboxNewCount = useInboxNewCount(false);
+
+  const fetchInboxThreads = useCallback(async () => {
+    const data = await utils.gmail.listThreads.fetch({
+      label: "INBOX",
+      refresh: true,
+    });
+    return data.threads;
+  }, [utils]);
+
+  const inboxNewCount = useInboxNewCount(false, fetchInboxThreads);
 
   const refreshCalendar = useCallback(() => {
     void utils.calendar.listEvents.invalidate();

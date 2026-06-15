@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/input-group";
 import { Input } from "@/components/ui/input";
 import { ComposeFormFields } from "@/components/mail/compose-form-fields";
+import { suppressInboxNotifyForMs } from "@/hooks/use-mail-realtime";
 import { api } from "@/trpc/react";
 
 export type ComposeInitial = {
@@ -284,7 +285,10 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
   }, [initial]);
 
   const sendEmail = api.gmail.sendEmail.useMutation({
-    onSuccess: () => onSent(),
+    onSuccess: () => {
+      suppressInboxNotifyForMs(15_000);
+      onSent();
+    },
     onError: (e) => setError(e.message),
   });
   const createDraft = api.gmail.createDraft.useMutation({

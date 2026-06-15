@@ -10,6 +10,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { ComposeFormFields } from "@/components/mail/compose-form-fields";
+import { suppressInboxNotifyForMs } from "@/hooks/use-mail-realtime";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -104,6 +105,9 @@ export function AgentComposeBlock({
       if (!res.ok) {
         onStatusChange?.(id, "failed", data.error ?? "Action failed.");
         return;
+      }
+      if (action === "send_email") {
+        suppressInboxNotifyForMs(15_000);
       }
       onStatusChange?.(
         id,

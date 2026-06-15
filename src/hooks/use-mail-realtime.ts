@@ -1,35 +1,59 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/** Gmail push often arrives before threads.list includes the new message. */
-const INBOX_REFRESH_DELAYS_MS = [0, 1_500, 4_000] as const;
+/** One delayed refresh after a webhook burst (Gmail can lag behind push). */
+const INBOX_REFRESH_DELAYS_MS = [0, 2_000] as const;
 const CALENDAR_REFRESH_DELAYS_MS = [0, 2_000] as const;
 
-/** Collapse duplicate Gmail webhooks into one toast/badge per burst. */
-const NOTIFY_DEBOUNCE_MS = 5_000;
-
 const MAIL_INBOX_TOAST_ID = "mail-inbox-sync";
-const CALENDAR_TOAST_ID = "calendar-sync";
 
-/** Background inbox refresh (may fire multiple times per webhook burst). */
+const SHARED_KEY = "__mailPilotMailRealtimeShared__" as const;
+const SUPPRESS_UNTIL_KEY = "__mailPilotSuppressInboxNotifyUntil__" as const;
+const KNOWN_THREADS_KEY = "__mailPilotKnownInboxThreads__" as const;
+
+/** Background inbox refresh (silent — no toast from SSE). */
 export const MAIL_INBOX_CHANGED_EVENT = "mailpilot:inbox_changed";
-/** User-visible notify (toast + badge), debounced once per burst. */
-export const MAIL_INBOX_NOTIFY_EVENT = "mailpilot:inbox_notify";
 export const CALENDAR_CHANGED_EVENT = "mailpilot:calendar_changed";
-export const CALENDAR_NOTIFY_EVENT = "mailpilot:calendar_notify";
 
 type SharedConnection = {
   source: EventSource;
   refCount: number;
   inboxTimers: number[];
   calendarTimers: number[];
-  lastInboxNotifyAt: number;
-  lastCalendarNotifyAt: number;
 };
 
-let shared: SharedConnection | null = null;
+type GlobalStore = typeof globalThis & {
+  [SHARED_KEY]?: SharedConnection;
+  [SUPPRESS_UNTIL_KEY]?: number;
+  [KNOWN_THREADS_KEY]?: Set<string>;
+};
+
+function getSharedConnection(): SharedConnection | null {
+  return (globalThis as GlobalStore)[SHARED_KEY] ?? null;
+}
+
+function setSharedConnection(connection: SharedConnection | null): void {
+  (globalThis as GlobalStore)[SHARED_KEY] = connection ?? undefined;
+}
+
+function getKnownThreadIds(): Set<string> {
+  const store = globalThis as GlobalStore;
+  store[KNOWN_THREADS_KEY] ??= new Set();
+  return store[KNOWN_THREADS_KEY]!;
+}
+
+/** Skip notify after the user sends mail (Gmail still pushes webhooks). */
+export function suppressInboxNotifyForMs(ms: number): void {
+  const store = globalThis as GlobalStore;
+  const until = Date.now() + ms;
+  store[SUPPRESS_UNTIL_KEY] = Math.max(store[SUPPRESS_UNTIL_KEY] ?? 0, until);
+}
+
+function isInboxNotifySuppressed(): boolean {
+  return Date.now() < ((globalThis as GlobalStore)[SUPPRESS_UNTIL_KEY] ?? 0);
+}
 
 function dispatchRefreshSignals(
   eventName: string,
@@ -45,68 +69,35 @@ function dispatchRefreshSignals(
   }
 }
 
-function shouldNotify(lastAt: number): boolean {
-  return Date.now() - lastAt >= NOTIFY_DEBOUNCE_MS;
+function clearConnectionTimers(connection: SharedConnection) {
+  for (const id of connection.inboxTimers) window.clearTimeout(id);
+  for (const id of connection.calendarTimers) window.clearTimeout(id);
+  connection.inboxTimers.length = 0;
+  connection.calendarTimers.length = 0;
 }
 
-function notifyInboxBurst(connection: SharedConnection) {
-  if (!shouldNotify(connection.lastInboxNotifyAt)) return;
-  connection.lastInboxNotifyAt = Date.now();
-  toast.info("New mail received", {
-    id: MAIL_INBOX_TOAST_ID,
-    description: "Syncing your inbox…",
-  });
-  window.dispatchEvent(new Event(MAIL_INBOX_NOTIFY_EVENT));
-}
-
-function notifyCalendarBurst(connection: SharedConnection) {
-  if (!shouldNotify(connection.lastCalendarNotifyAt)) return;
-  connection.lastCalendarNotifyAt = Date.now();
-  toast.info("Calendar updated", {
-    id: CALENDAR_TOAST_ID,
-    description: "Syncing events…",
-  });
-  window.dispatchEvent(new Event(CALENDAR_NOTIFY_EVENT));
-}
-
-function acquireSharedConnection(): SharedConnection {
-  if (shared) {
-    shared.refCount += 1;
-    return shared;
-  }
-
-  const source = new EventSource("/api/mail/events");
-  shared = {
-    source,
-    refCount: 1,
-    inboxTimers: [],
-    calendarTimers: [],
-    lastInboxNotifyAt: 0,
-    lastCalendarNotifyAt: 0,
-  };
-
-  source.onmessage = (event) => {
-    if (!shared) return;
+function attachSharedHandlers(connection: SharedConnection) {
+  connection.source.onmessage = (event) => {
+    const current = getSharedConnection();
+    if (!current) return;
 
     try {
       const data = JSON.parse(event.data) as { type?: string };
       if (data.type === "inbox_changed") {
-        notifyInboxBurst(shared);
-        for (const id of shared.inboxTimers) window.clearTimeout(id);
-        shared.inboxTimers.length = 0;
+        for (const id of current.inboxTimers) window.clearTimeout(id);
+        current.inboxTimers.length = 0;
         dispatchRefreshSignals(
           MAIL_INBOX_CHANGED_EVENT,
           INBOX_REFRESH_DELAYS_MS,
-          shared.inboxTimers,
+          current.inboxTimers,
         );
       } else if (data.type === "calendar_changed") {
-        notifyCalendarBurst(shared);
-        for (const id of shared.calendarTimers) window.clearTimeout(id);
-        shared.calendarTimers.length = 0;
+        for (const id of current.calendarTimers) window.clearTimeout(id);
+        current.calendarTimers.length = 0;
         dispatchRefreshSignals(
           CALENDAR_CHANGED_EVENT,
           CALENDAR_REFRESH_DELAYS_MS,
-          shared.calendarTimers,
+          current.calendarTimers,
         );
       }
     } catch {
@@ -114,26 +105,48 @@ function acquireSharedConnection(): SharedConnection {
     }
   };
 
-  source.onerror = () => {
-    if (!shared) return;
-    for (const id of shared.inboxTimers) window.clearTimeout(id);
-    for (const id of shared.calendarTimers) window.clearTimeout(id);
-    shared.inboxTimers.length = 0;
-    shared.calendarTimers.length = 0;
+  connection.source.onerror = () => {
+    const current = getSharedConnection();
+    if (!current) return;
+    clearConnectionTimers(current);
+  };
+}
+
+function acquireSharedConnection(): SharedConnection {
+  const existing = getSharedConnection();
+  if (existing && existing.source.readyState !== EventSource.CLOSED) {
+    existing.refCount += 1;
+    return existing;
+  }
+
+  if (existing) {
+    clearConnectionTimers(existing);
+    existing.source.close();
+  }
+
+  const source = new EventSource("/api/mail/events");
+  const connection: SharedConnection = {
+    source,
+    refCount: 1,
+    inboxTimers: [],
+    calendarTimers: [],
   };
 
-  return shared;
+  attachSharedHandlers(connection);
+  setSharedConnection(connection);
+  return connection;
 }
 
 function releaseSharedConnection() {
-  if (!shared) return;
-  shared.refCount -= 1;
-  if (shared.refCount > 0) return;
+  const connection = getSharedConnection();
+  if (!connection) return;
 
-  for (const id of shared.inboxTimers) window.clearTimeout(id);
-  for (const id of shared.calendarTimers) window.clearTimeout(id);
-  shared.source.close();
-  shared = null;
+  connection.refCount -= 1;
+  if (connection.refCount > 0) return;
+
+  clearConnectionTimers(connection);
+  connection.source.close();
+  setSharedConnection(null);
 }
 
 /** Opens the shared SSE stream (ref-counted across mail / calendar / agent). */
@@ -173,21 +186,67 @@ export function useCalendarRealtime(onCalendarChanged: () => void) {
   }, []);
 }
 
-/** Badge count for new inbox activity while not viewing INBOX. */
-export function useInboxNewCount(isViewingInbox: boolean): number {
+/**
+ * Compare inbox thread ids after a silent refresh; toast/badge only when
+ * genuinely new threads appear (not on every Gmail webhook).
+ */
+export function useInboxNewCount(
+  isViewingInbox: boolean,
+  fetchInboxThreads: () => Promise<{ threadId: string }[]>,
+): number {
   const [count, setCount] = useState(0);
+  const fetchRef = useRef(fetchInboxThreads);
+  fetchRef.current = fetchInboxThreads;
+  const seededRef = useRef(false);
 
-  useEffect(() => {
-    const onNotify = () => {
-      setCount((current) => current + 1);
-    };
-    window.addEventListener(MAIL_INBOX_NOTIFY_EVENT, onNotify);
-    return () => window.removeEventListener(MAIL_INBOX_NOTIFY_EVENT, onNotify);
+  const checkForNewMail = useCallback(async () => {
+    try {
+      const threads = await fetchRef.current();
+      const known = getKnownThreadIds();
+      const ids = threads.map((t) => t.threadId);
+
+      if (!seededRef.current) {
+        for (const id of ids) known.add(id);
+        seededRef.current = true;
+        return;
+      }
+
+      let added = 0;
+      for (const id of ids) {
+        if (!known.has(id)) added += 1;
+      }
+      for (const id of ids) known.add(id);
+
+      if (added > 0 && !isInboxNotifySuppressed()) {
+        toast.info("New mail received", {
+          id: MAIL_INBOX_TOAST_ID,
+          description:
+            added === 1
+              ? "Syncing your inbox…"
+              : `${added} new messages — syncing inbox…`,
+        });
+        setCount((current) => current + added);
+      }
+    } catch {
+      // ignore fetch errors during background sync
+    }
   }, []);
 
+  useMailRealtimeInbox(checkForNewMail);
+
   useEffect(() => {
-    if (isViewingInbox) setCount(0);
+    if (isViewingInbox) {
+      setCount(0);
+      seededRef.current = false;
+      getKnownThreadIds().clear();
+    }
   }, [isViewingInbox]);
+
+  // Seed known threads on mount so the first webhook doesn't false-positive.
+  useEffect(() => {
+    if (isViewingInbox) return;
+    void checkForNewMail();
+  }, [checkForNewMail, isViewingInbox]);
 
   return isViewingInbox ? 0 : count;
 }
