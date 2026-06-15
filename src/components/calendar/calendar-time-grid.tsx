@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   GRID_HEIGHT_PX,
+  GRID_SCROLL_PADDING_PX,
   HOUR_HEIGHT_PX,
   allDayEventsForWeek,
   dayKey,
@@ -244,7 +245,10 @@ export function CalendarTimeGrid({
   useEffect(() => {
     const el = viewportRef.current;
     if (!el || scrollToEventId) return;
-    const defaultScroll = Math.max(0, 7 * HOUR_HEIGHT_PX - el.clientHeight / 2);
+    const defaultScroll = Math.max(
+      0,
+      8 * HOUR_HEIGHT_PX + GRID_SCROLL_PADDING_PX - el.clientHeight / 2,
+    );
     el.scrollTop = defaultScroll;
   }, [weekStart, scrollToEventId]);
 
@@ -270,17 +274,28 @@ export function CalendarTimeGrid({
     return () => cancelAnimationFrame(frame);
   }, [scrollToEventId, events, selectedDay, onScrollToEventComplete]);
 
+  function gridOffsetY(clientOffsetY: number): number {
+    return Math.max(
+      0,
+      Math.min(clientOffsetY - GRID_SCROLL_PADDING_PX, GRID_HEIGHT_PX),
+    );
+  }
+
   function handleColumnClick(day: Date, e: React.MouseEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
+    const offsetY = gridOffsetY(e.clientY - rect.top);
     const { start, end } = slotTimesFromOffset(day, offsetY);
     onSlotClick(start, end);
   }
 
   function handleGridMouseMove(e: React.MouseEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-    if (offsetY < 0 || offsetY > GRID_HEIGHT_PX) {
+    const offsetY = gridOffsetY(e.clientY - rect.top);
+    if (offsetY <= 0 && e.clientY - rect.top < GRID_SCROLL_PADDING_PX) {
+      setCursorGuide(null);
+      return;
+    }
+    if (offsetY >= GRID_HEIGHT_PX) {
       setCursorGuide(null);
       return;
     }
@@ -403,10 +418,18 @@ export function CalendarTimeGrid({
         ) : null}
 
         <div
-          className="relative grid [grid-template-columns:3.5rem_repeat(7,minmax(0,1fr))]"
-          style={{ minHeight: GRID_HEIGHT_PX }}
+          className="relative"
+          style={{
+            minHeight: GRID_HEIGHT_PX + GRID_SCROLL_PADDING_PX * 2,
+            paddingTop: GRID_SCROLL_PADDING_PX,
+            paddingBottom: GRID_SCROLL_PADDING_PX,
+          }}
           onMouseMove={handleGridMouseMove}
           onMouseLeave={handleGridMouseLeave}
+        >
+        <div
+          className="relative grid [grid-template-columns:3.5rem_repeat(7,minmax(0,1fr))]"
+          style={{ height: GRID_HEIGHT_PX }}
         >
           {/* Time gutter */}
           <div className="relative border-r border-border">
@@ -513,6 +536,7 @@ export function CalendarTimeGrid({
               </div>
             </div>
           ) : null}
+        </div>
         </div>
       </ScrollArea>
     </div>

@@ -1,11 +1,14 @@
 import type { CalendarEventView } from "@/server/api/routers/calendar";
 
 /** Visible hours in the week grid (inclusive start, exclusive end). */
-export const GRID_START_HOUR = 5;
-export const GRID_END_HOUR = 23;
+export const GRID_START_HOUR = 0;
+export const GRID_END_HOUR = 24;
 export const PX_PER_MINUTE = 1.2;
 export const HOUR_HEIGHT_PX = 60 * PX_PER_MINUTE;
-export const GRID_HEIGHT_PX = (GRID_END_HOUR - GRID_START_HOUR) * HOUR_HEIGHT_PX;
+export const GRID_HEIGHT_PX =
+  (GRID_END_HOUR - GRID_START_HOUR) * HOUR_HEIGHT_PX;
+/** Extra scroll padding so first/last hour labels are not clipped. */
+export const GRID_SCROLL_PADDING_PX = 12;
 export const SNAP_MINUTES = 15;
 
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -333,7 +336,7 @@ export function formatTimeLabelFromGridOffset(offsetY: number): string {
   const totalMins = GRID_START_HOUR * 60 + gridMins;
   const clamped = Math.max(
     GRID_START_HOUR * 60,
-    Math.min(Math.round(totalMins), GRID_END_HOUR * 60),
+    Math.min(Math.round(totalMins), GRID_END_HOUR * 60 - 1),
   );
   const h = Math.floor(clamped / 60);
   const m = clamped % 60;
