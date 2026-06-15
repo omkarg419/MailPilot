@@ -264,6 +264,28 @@ export function eventsOnDay(
     .sort((a, b) => eventStartSortMs(a, day) - eventStartSortMs(b, day));
 }
 
+/**
+ * Whether an event is still upcoming on the selected day (show clock).
+ * Past / already-started events on today return false (show checkmark).
+ */
+export function isEventUpcomingOnDay(
+  event: CalendarEventView,
+  day: Date,
+  now: Date = new Date(),
+): boolean {
+  const todayKey = dayKey(now);
+  const selectedKey = dayKey(day);
+
+  if (selectedKey < todayKey) return false;
+  if (selectedKey > todayKey) return true;
+
+  if (event.allDay) return true;
+
+  const start = parseEventInstant(event.start, false);
+  if (!start) return true;
+  return start.getTime() > now.getTime();
+}
+
 /** Scroll offset (px) to bring an event into view on the time grid. */
 export function gridScrollTopForEvent(
   event: CalendarEventView,

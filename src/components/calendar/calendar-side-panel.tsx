@@ -2,17 +2,15 @@
 
 import { useMemo } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Clock01Icon } from "@hugeicons/core-free-icons";
+import { Clock01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 
 import { Calendar } from "@/components/ui/calendar";
-import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
   eventsOnDay,
   formatEventTimeShort,
+  isEventUpcomingOnDay,
   isToday,
 } from "@/lib/calendar-grid";
 
@@ -40,7 +38,7 @@ export function CalendarSidePanel({
   selectedDay,
   events,
   focusEventId,
-  userEmail,
+  userEmail: _userEmail,
   onSelectDay,
   onEventSelect,
 }: CalendarSidePanelProps) {
@@ -81,6 +79,7 @@ export function CalendarSidePanel({
               <ul className="flex flex-col gap-1.5">
                 {dayEvents.map((event) => {
                   const focused = focusEventId === event.id;
+                  const upcoming = isEventUpcomingOnDay(event, selectedDay);
                   return (
                     <li key={event.id}>
                       <button
@@ -91,17 +90,35 @@ export function CalendarSidePanel({
                           focused
                             ? "border-primary/50 bg-primary/15 ring-1 ring-primary/30"
                             : "border-border bg-background hover:border-primary/30 hover:bg-muted/40",
+                          !upcoming && !focused && "opacity-80",
                         )}
                       >
-                        <p className="truncate text-sm font-medium text-foreground">
+                        <p
+                          className={cn(
+                            "truncate text-sm font-medium",
+                            upcoming ? "text-foreground" : "text-muted-foreground",
+                          )}
+                        >
                           {event.title}
                         </p>
-                        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
-                          <HugeiconsIcon
-                            icon={Clock01Icon}
-                            strokeWidth={2}
-                            className="size-3 shrink-0"
-                          />
+                        <p
+                          className={cn(
+                            "mt-0.5 flex items-center gap-1.5 truncate text-xs",
+                            upcoming ? "text-foreground/80" : "text-muted-foreground",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "flex size-4 shrink-0 items-center justify-center rounded-[0.25rem]",
+                              upcoming ? "bg-primary/15 text-primary" : "text-muted-foreground",
+                            )}
+                          >
+                            <HugeiconsIcon
+                              icon={upcoming ? Clock01Icon : Tick02Icon}
+                              strokeWidth={2}
+                              className="size-2.5"
+                            />
+                          </span>
                           {formatEventTimeShort(event.start, event.end, event.allDay)}
                         </p>
                       </button>
