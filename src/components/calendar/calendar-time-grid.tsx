@@ -24,6 +24,7 @@ import {
   formatEventTimeShort,
   formatEventTimeCompact,
   formatHourLabel,
+  formatTimeLabelFromGridOffset,
   getHourMarkers,
   getWeekDays,
   gridScrollTopForEvent,
@@ -197,6 +198,10 @@ export function CalendarTimeGrid({
 }: CalendarTimeGridProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [nowTop, setNowTop] = useState<number | null>(() => nowLineTopPx());
+  const [cursorGuide, setCursorGuide] = useState<{
+    top: number;
+    label: string;
+  } | null>(null);
 
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
   const hourMarkers = useMemo(() => getHourMarkers(), []);
@@ -270,6 +275,23 @@ export function CalendarTimeGrid({
     const offsetY = e.clientY - rect.top;
     const { start, end } = slotTimesFromOffset(day, offsetY);
     onSlotClick(start, end);
+  }
+
+  function handleGridMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    if (offsetY < 0 || offsetY > GRID_HEIGHT_PX) {
+      setCursorGuide(null);
+      return;
+    }
+    setCursorGuide({
+      top: offsetY,
+      label: formatTimeLabelFromGridOffset(offsetY),
+    });
+  }
+
+  function handleGridMouseLeave() {
+    setCursorGuide(null);
   }
 
   if (isLoading) {
@@ -383,6 +405,8 @@ export function CalendarTimeGrid({
         <div
           className="relative grid [grid-template-columns:3.5rem_repeat(7,minmax(0,1fr))]"
           style={{ minHeight: GRID_HEIGHT_PX }}
+          onMouseMove={handleGridMouseMove}
+          onMouseLeave={handleGridMouseLeave}
         >
           {/* Time gutter */}
           <div className="relative border-r border-border">
@@ -409,7 +433,7 @@ export function CalendarTimeGrid({
               <div
                 key={key}
                 className={cn(
-                  "relative border-r border-border last:border-r-0",
+                  "relative cursor-pointer border-r border-border last:border-r-0",
                   today && "bg-primary/[0.02]",
                 )}
                 style={{ height: GRID_HEIGHT_PX }}
@@ -436,6 +460,29 @@ export function CalendarTimeGrid({
               </div>
             );
           })}
+
+          {/* Cursor time preview */}
+          {cursorGuide ? (
+            <div
+              className="pointer-events-none absolute right-0 left-0 z-30"
+              style={{ top: cursorGuide.top }}
+            >
+              <div className="grid [grid-template-columns:3.5rem_repeat(7,minmax(0,1fr))]">
+                <div className="relative flex items-center justify-end pr-1">
+                  <span className="rounded-[0.25rem] bg-foreground px-1.5 py-0.5 font-mono text-[0.6rem] text-background shadow-sm">
+                    {cursorGuide.label}
+                  </span>
+                </div>
+                {weekDays.map((day) => (
+                  <div key={`cursor-${dayKey(day)}`} className="relative">
+                    <div className="absolute top-1/2 right-0 left-0 h-px -translate-y-1/2 bg-foreground/35">
+                      <div className="absolute top-1/2 -left-1 size-1.5 -translate-y-1/2 rounded-full bg-foreground/50" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* Now indicator across grid */}
           {nowTop !== null && weekDays.some(isToday) ? (

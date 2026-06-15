@@ -328,6 +328,22 @@ export function snapMinutes(minutes: number): number {
   return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
 }
 
+export function formatTimeLabelFromGridOffset(offsetY: number): string {
+  const gridMins = offsetY / PX_PER_MINUTE;
+  const totalMins = GRID_START_HOUR * 60 + gridMins;
+  const clamped = Math.max(
+    GRID_START_HOUR * 60,
+    Math.min(Math.round(totalMins), GRID_END_HOUR * 60),
+  );
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  const anchor = new Date(2000, 0, 1, h, m);
+  return anchor.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function slotTimesFromOffset(
   day: Date,
   offsetY: number,
