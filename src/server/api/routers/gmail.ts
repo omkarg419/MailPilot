@@ -47,6 +47,47 @@ function wrapError(err: unknown, action: string): never {
   });
 }
 
+type GmailClient = ReturnType<typeof gmailFor>;
+type MailboxLabel = (typeof MAILBOX_LABELS)[number];
+
+function messageMatchesLabel(
+  labelIds: string[] | undefined,
+  label: MailboxLabel,
+): boolean {
+  const labels = labelIds ?? [];
+  if (label === "INBOX") {
+    return labels.includes("INBOX") && !labels.includes("TRASH");
+  }
+  return labels.includes(label);
+}
+
+/** Keep Corsair message cache aligned after label changes (trash, read, etc.). */
+async function syncThreadMessagesInCache(
+  gmail: GmailClient,
+  threadId: string,
+): Promise<void> {
+  const db = gmail.db?.messages;
+  if (!db) return;
+
+  const thread = await gmail.api.threads.get({
+    id: threadId,
+    format: "full",
+  });
+
+  for (const message of thread.messages ?? []) {
+    if (!message.id) continue;
+    const payload = message.payload as MessagePart | undefined;
+    await db.upsertByEntityId(message.id, {
+      ...message,
+      id: message.id,
+      threadId: message.threadId ?? threadId,
+      from: getHeader(payload?.headers, "From") ?? undefined,
+      subject: getHeader(payload?.headers, "Subject") ?? undefined,
+      createdAt: new Date(),
+    });
+  }
+}
+
 /** Build a thread summary from a fully-fetched API thread (uses its latest message). */
 function summarizeApiThread(thread: {
   id?: string;
@@ -94,7 +135,7 @@ export const gmailRouter = createTRPCRouter({
         try {
           const cached = await gmail.db.messages.list({ limit: 300 });
           const inLabel = cached.filter((entity) =>
-            entity.data.labelIds?.includes(input.label),
+            messageMatchesLabel(entity.data.labelIds, input.label),
           );
 
           if (inLabel.length > 0) {
@@ -270,6 +311,7 @@ export const gmailRouter = createTRPCRouter({
       const gmail = gmailFor(ctx.session.user.id);
       try {
         await gmail.api.threads.trash({ id: input.threadId });
+        await syncThreadMessagesInCache(gmail, input.threadId);
         return { success: true };
       } catch (err) {
         wrapError(err, "trash");
@@ -282,6 +324,7 @@ export const gmailRouter = createTRPCRouter({
       const gmail = gmailFor(ctx.session.user.id);
       try {
         await gmail.api.threads.untrash({ id: input.threadId });
+        await syncThreadMessagesInCache(gmail, input.threadId);
         return { success: true };
       } catch (err) {
         wrapError(err, "untrash");
@@ -298,6 +341,7 @@ export const gmailRouter = createTRPCRouter({
           addLabelIds: input.read ? [] : ["UNREAD"],
           removeLabelIds: input.read ? ["UNREAD"] : [],
         });
+        await syncThreadMessagesInCache(gmail, input.threadId);
         return { success: true };
       } catch (err) {
         wrapError(err, "markRead");

@@ -99,7 +99,7 @@ export function CalendarWeekView({
 
   const deleteEvent = api.calendar.deleteEvent.useMutation({
     onMutate: async ({ eventId }) => {
-      await utils.calendar.listEvents.cancel(range);
+      await utils.calendar.listEvents.cancel(range).catch(() => undefined);
       const previous = utils.calendar.listEvents.getData(range);
       utils.calendar.listEvents.setData(range, (old) =>
         old ? old.filter((event) => event.id !== eventId) : old,

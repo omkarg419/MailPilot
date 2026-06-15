@@ -90,7 +90,7 @@ export function MailClient({
   const markRead = api.gmail.markRead.useMutation({
     onMutate: async ({ threadId, read }) => {
       const input = { label, q: query || undefined };
-      await utils.gmail.listThreads.cancel(input);
+      await utils.gmail.listThreads.cancel(input).catch(() => undefined);
 
       const previous = utils.gmail.listThreads.getData(input);
 
@@ -116,7 +116,7 @@ export function MailClient({
   });
   const trash = api.gmail.trash.useMutation({
     onMutate: async ({ threadId }) => {
-      await utils.gmail.listThreads.cancel(listThreadsInput);
+      await utils.gmail.listThreads.cancel(listThreadsInput).catch(() => undefined);
 
       const previous = utils.gmail.listThreads.getData(listThreadsInput);
 
@@ -143,7 +143,7 @@ export function MailClient({
   });
   const untrash = api.gmail.untrash.useMutation({
     onMutate: async ({ threadId }) => {
-      await utils.gmail.listThreads.cancel(listThreadsInput);
+      await utils.gmail.listThreads.cancel(listThreadsInput).catch(() => undefined);
 
       const previous = utils.gmail.listThreads.getData(listThreadsInput);
 
