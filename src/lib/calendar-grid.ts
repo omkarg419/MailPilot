@@ -236,6 +236,49 @@ export function allDayEventsForWeek(
   return map;
 }
 
+export function eventOccursOnDay(event: CalendarEventView, day: Date): boolean {
+  if (event.allDay) {
+    const key = dayKey(day);
+    const startKey = event.start.slice(0, 10);
+    const endKey = event.end.slice(0, 10);
+    return key >= startKey && key < endKey;
+  }
+  return segmentForDay(event, day) !== null;
+}
+
+function eventStartSortMs(event: CalendarEventView, day: Date): number {
+  if (event.allDay) return 0;
+  const seg = segmentForDay(event, day);
+  if (seg) return seg.startMs;
+  const start = parseEventInstant(event.start, false);
+  return start?.getTime() ?? Number.MAX_SAFE_INTEGER;
+}
+
+/** Events on a single day, sorted by start time (all-day first). */
+export function eventsOnDay(
+  events: CalendarEventView[],
+  day: Date,
+): CalendarEventView[] {
+  return events
+    .filter((e) => eventOccursOnDay(e, day))
+    .sort((a, b) => eventStartSortMs(a, day) - eventStartSortMs(b, day));
+}
+
+/** Scroll offset (px) to bring an event into view on the time grid. */
+export function gridScrollTopForEvent(
+  event: CalendarEventView,
+  day: Date,
+): number {
+  if (event.allDay) return 0;
+  const seg = segmentForDay(event, day);
+  if (seg) return msToGridTop(seg.startMs, day);
+  const start = parseEventInstant(event.start, false);
+  if (start && isSameDay(start, day)) {
+    return msToGridTop(start.getTime(), day);
+  }
+  return 0;
+}
+
 export function nowLineTopPx(): number | null {
   const now = new Date();
   const mins = minutesSinceMidnight(now) - GRID_START_HOUR * 60;

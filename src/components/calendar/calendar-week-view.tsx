@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -16,7 +16,7 @@ import type { EventFormState } from "@/components/calendar/calendar-event-dialog
 import { CalendarSidePanel } from "@/components/calendar/calendar-side-panel";
 import { CalendarTimeGrid } from "@/components/calendar/calendar-time-grid";
 import { cn } from "@/lib/utils";
-import { formatMonthYear } from "@/lib/calendar-grid";
+import { formatMonthYear, getWeekDays, isSameDay } from "@/lib/calendar-grid";
 import {
   fromDatetimeLocalValue,
   getWeekRange,
@@ -39,11 +39,20 @@ const emptyForm = (): EventFormState => ({
   description: "",
 });
 
+function startOfLocalDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export function CalendarWeekView({
   calendarConnected,
   userEmail,
 }: CalendarWeekViewProps) {
   const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()));
+  const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()));
+  const [focusEventId, setFocusEventId] = useState<string | null>(null);
+  const [scrollToEventId, setScrollToEventId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEventView | null>(null);
   const [form, setForm] = useState<EventFormState>(emptyForm);
@@ -103,6 +112,7 @@ export function CalendarWeekView({
   }
 
   function openEdit(event: CalendarEventView) {
+    setFocusEventId(event.id);
     setEditingEvent(event);
     setForm({
       title: event.title,
@@ -137,6 +147,40 @@ export function CalendarWeekView({
 
   const isSaving = createEvent.isPending || updateEvent.isPending;
 
+  const handleSelectDay = useCallback(
+    (day: Date) => {
+      const d = startOfLocalDay(day);
+      setSelectedDay(d);
+      const inWeek = getWeekDays(weekStart).some((wd) => isSameDay(wd, d));
+      if (!inWeek) {
+        setWeekStart(startOfWeekMonday(d));
+      }
+    },
+    [weekStart],
+  );
+
+  const handleSidePanelEvent = useCallback((event: CalendarEventView) => {
+    setFocusEventId(event.id);
+    setScrollToEventId(event.id);
+  }, []);
+
+  const handleScrollToEventComplete = useCallback(() => {
+    setScrollToEventId(null);
+  }, []);
+
+  function shiftWeek(deltaDays: number) {
+    setWeekStart((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + deltaDays);
+      return d;
+    });
+    setSelectedDay((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + deltaDays);
+      return d;
+    });
+  }
+
   if (!calendarConnected) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
@@ -162,7 +206,11 @@ export function CalendarWeekView({
             variant="outline"
             size="sm"
             className="rounded-[0.5rem] font-medium uppercase"
-            onClick={() => setWeekStart(startOfWeekMonday(new Date()))}
+            onClick={() => {
+              const today = startOfLocalDay(new Date());
+              setWeekStart(startOfWeekMonday(today));
+              setSelectedDay(today);
+            }}
           >
             Today
           </Button>
@@ -172,11 +220,7 @@ export function CalendarWeekView({
             size="icon-sm"
             className="rounded-[0.5rem]"
             aria-label="Previous week"
-            onClick={() => {
-              const d = new Date(weekStart);
-              d.setDate(d.getDate() - 7);
-              setWeekStart(d);
-            }}
+            onClick={() => shiftWeek(-7)}
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           </Button>
@@ -186,11 +230,7 @@ export function CalendarWeekView({
             size="icon-sm"
             className="rounded-[0.5rem]"
             aria-label="Next week"
-            onClick={() => {
-              const d = new Date(weekStart);
-              d.setDate(d.getDate() + 7);
-              setWeekStart(d);
-            }}
+            onClick={() => shiftWeek(7)}
           >
             <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
           </Button>
@@ -210,17 +250,24 @@ export function CalendarWeekView({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <CalendarTimeGrid
           weekStart={weekStart}
+          selectedDay={selectedDay}
           events={eventsQuery.data}
           isLoading={eventsQuery.isLoading}
           isError={eventsQuery.isError}
           errorMessage={eventsQuery.error?.message}
+          focusEventId={focusEventId}
+          scrollToEventId={scrollToEventId}
+          onScrollToEventComplete={handleScrollToEventComplete}
           onEventClick={openEdit}
           onSlotClick={openCreateWithTimes}
         />
         <CalendarSidePanel
-          weekStart={weekStart}
+          selectedDay={selectedDay}
+          events={eventsQuery.data ?? []}
+          focusEventId={focusEventId}
           userEmail={userEmail}
-          onSelectDay={setWeekStart}
+          onSelectDay={handleSelectDay}
+          onEventSelect={handleSidePanelEvent}
         />
       </div>
 

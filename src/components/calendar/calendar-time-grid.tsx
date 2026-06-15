@@ -26,6 +26,7 @@ import {
   formatHourLabel,
   getHourMarkers,
   getWeekDays,
+  gridScrollTopForEvent,
   isToday,
   layoutDayEvents,
   nowLineTopPx,
@@ -40,6 +41,7 @@ const FULL_TIME_MIN_HEIGHT_PX = 48;
 
 function GridEventBlock({
   layout,
+  isFocused,
   onEventClick,
 }: {
   layout: {
@@ -49,6 +51,7 @@ function GridEventBlock({
     column: number;
     totalColumns: number;
   };
+  isFocused?: boolean;
   onEventClick: (event: CalendarEventView) => void;
 }) {
   const { event, top, height, column, totalColumns } = layout;
@@ -83,8 +86,11 @@ function GridEventBlock({
       }}
       className={cn(
         "absolute z-10 flex cursor-pointer flex-col overflow-hidden rounded-[0.35rem]",
-        "border border-primary/35 bg-primary/20 ring-1 ring-primary/20",
-        "px-1.5 hover:bg-primary/30",
+        "border bg-primary/20 ring-1 hover:bg-primary/30",
+        isFocused
+          ? "z-20 border-primary bg-primary/30 ring-2 ring-primary/60"
+          : "border-primary/35 ring-primary/20",
+        "px-1.5",
         tiny ? "justify-center" : "justify-start",
         contentGap,
         contentPad,
@@ -127,10 +133,14 @@ function GridEventBlock({
 
 type CalendarTimeGridProps = {
   weekStart: Date;
+  selectedDay: Date;
   events: CalendarEventView[] | undefined;
   isLoading: boolean;
   isError: boolean;
   errorMessage?: string;
+  focusEventId?: string | null;
+  scrollToEventId?: string | null;
+  onScrollToEventComplete?: () => void;
   onEventClick: (event: CalendarEventView) => void;
   onSlotClick: (start: string, end: string) => void;
 };
@@ -174,10 +184,14 @@ function CalendarGridSkeleton() {
 
 export function CalendarTimeGrid({
   weekStart,
+  selectedDay,
   events,
   isLoading,
   isError,
   errorMessage,
+  focusEventId = null,
+  scrollToEventId = null,
+  onScrollToEventComplete,
   onEventClick,
   onSlotClick,
 }: CalendarTimeGridProps) {
@@ -224,10 +238,32 @@ export function CalendarTimeGrid({
 
   useEffect(() => {
     const el = viewportRef.current;
-    if (!el) return;
+    if (!el || scrollToEventId) return;
     const defaultScroll = Math.max(0, 7 * HOUR_HEIGHT_PX - el.clientHeight / 2);
     el.scrollTop = defaultScroll;
-  }, [weekStart]);
+  }, [weekStart, scrollToEventId]);
+
+  useEffect(() => {
+    if (!scrollToEventId || !events?.length) return;
+    const event = events.find((e) => e.id === scrollToEventId);
+    if (!event) {
+      onScrollToEventComplete?.();
+      return;
+    }
+
+    const top = gridScrollTopForEvent(event, selectedDay);
+    const el = viewportRef.current;
+    if (!el) {
+      onScrollToEventComplete?.();
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      el.scrollTop = Math.max(0, top - el.clientHeight / 3);
+      onScrollToEventComplete?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollToEventId, events, selectedDay, onScrollToEventComplete]);
 
   function handleColumnClick(day: Date, e: React.MouseEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -310,8 +346,11 @@ export function CalendarTimeGrid({
                       }
                     }}
                     className={cn(
-                      "mb-0.5 cursor-pointer rounded-[0.35rem] bg-primary/15 py-1 ring-primary/30",
-                      "hover:bg-primary/25 [--card-spacing:--spacing(1.5)]",
+                      "mb-0.5 cursor-pointer rounded-[0.35rem] py-1",
+                      "[--card-spacing:--spacing(1.5)]",
+                      focusEventId === event.id
+                        ? "bg-primary/30 ring-2 ring-primary/60"
+                        : "bg-primary/15 ring-primary/30 hover:bg-primary/25",
                     )}
                   >
                     <CardTitle className="truncate px-1.5 text-[0.7rem] font-medium">
@@ -390,6 +429,7 @@ export function CalendarTimeGrid({
                   <GridEventBlock
                     key={`${layout.event.id}-${key}`}
                     layout={layout}
+                    isFocused={focusEventId === layout.event.id}
                     onEventClick={onEventClick}
                   />
                 ))}
