@@ -54,6 +54,25 @@ export function formatEventTimeShort(start: string, end: string, allDay: boolean
   return `${fmt(startDate)} – ${fmt(endDate)}`;
 }
 
+/** Ultra-compact range for small grid blocks, e.g. "3–3:30p". */
+export function formatEventTimeCompact(start: string, end: string, allDay: boolean): string {
+  if (allDay) return "All day";
+  const startDate = parseEventInstant(start, false);
+  const endDate = parseEventInstant(end, false);
+  if (!startDate || !endDate) return "";
+
+  const meridian = (d: Date) => (d.getHours() < 12 ? "a" : "p");
+  const clock = (d: Date, withMeridian: boolean) => {
+    const h = d.getHours() % 12 || 12;
+    const m = d.getMinutes();
+    const time = m === 0 ? `${h}` : `${h}:${String(m).padStart(2, "0")}`;
+    return withMeridian ? `${time}${meridian(d)}` : time;
+  };
+
+  const sameMeridian = meridian(startDate) === meridian(endDate);
+  return `${clock(startDate, !sameMeridian)}–${clock(endDate, true)}`;
+}
+
 /** Parse API datetime into a local Date for grid math. */
 export function parseEventInstant(value: string, allDay: boolean): Date | null {
   const trimmed = value.trim();

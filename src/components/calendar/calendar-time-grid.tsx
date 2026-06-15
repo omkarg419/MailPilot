@@ -22,6 +22,7 @@ import {
   allDayEventsForWeek,
   dayKey,
   formatEventTimeShort,
+  formatEventTimeCompact,
   formatHourLabel,
   getHourMarkers,
   getWeekDays,
@@ -34,8 +35,8 @@ import {
 
 import type { CalendarEventView } from "@/server/api/routers/calendar";
 
-/** Min card height (px) before showing the time line below the title. */
-const SHOW_TIME_MIN_HEIGHT_PX = 44;
+/** Use full time labels when the block is tall enough for two comfortable lines. */
+const FULL_TIME_MIN_HEIGHT_PX = 48;
 
 function GridEventBlock({
   layout,
@@ -53,13 +54,17 @@ function GridEventBlock({
   const { event, top, height, column, totalColumns } = layout;
   const widthPct = 100 / totalColumns;
   const leftPct = column * widthPct;
-  const showTime = height >= SHOW_TIME_MIN_HEIGHT_PX;
-  const compact = height < 32;
+  const tiny = height < 26;
+  const compact = height < FULL_TIME_MIN_HEIGHT_PX;
+  const timeLabel = compact
+    ? formatEventTimeCompact(event.start, event.end, event.allDay)
+    : formatEventTimeShort(event.start, event.end, event.allDay);
 
   return (
     <div
       role="button"
       tabIndex={0}
+      title={`${event.title} · ${formatEventTimeShort(event.start, event.end, event.allDay)}`}
       onClick={(e) => {
         e.stopPropagation();
         onEventClick(event);
@@ -74,8 +79,8 @@ function GridEventBlock({
       className={cn(
         "absolute z-10 flex cursor-pointer flex-col overflow-hidden rounded-[0.35rem]",
         "border border-primary/35 bg-primary/20 ring-1 ring-primary/20",
-        "px-1 py-px hover:bg-primary/30",
-        compact ? "justify-center" : "justify-start gap-px",
+        "px-1 hover:bg-primary/30",
+        tiny ? "justify-center py-0" : "justify-start gap-0 py-px",
       )}
       style={{
         top,
@@ -84,19 +89,31 @@ function GridEventBlock({
         width: `calc(${widthPct}% - 4px)`,
       }}
     >
-      <p
-        className={cn(
-          "truncate font-semibold text-foreground",
-          compact ? "text-[0.625rem] leading-none" : "text-[0.6875rem] leading-tight",
-        )}
-      >
-        {event.title}
-      </p>
-      {showTime ? (
-        <p className="truncate text-[0.625rem] leading-none text-muted-foreground">
-          {formatEventTimeShort(event.start, event.end, event.allDay)}
+      {tiny ? (
+        <p className="truncate text-[0.5625rem] leading-[11px] text-foreground">
+          <span className="font-semibold">{event.title}</span>
+          <span className="text-muted-foreground"> · {timeLabel}</span>
         </p>
-      ) : null}
+      ) : (
+        <>
+          <p
+            className={cn(
+              "shrink-0 truncate font-semibold text-foreground",
+              compact ? "text-[0.625rem] leading-[11px]" : "text-[0.6875rem] leading-tight",
+            )}
+          >
+            {event.title}
+          </p>
+          <p
+            className={cn(
+              "shrink-0 truncate text-muted-foreground",
+              compact ? "text-[0.5625rem] leading-[10px]" : "text-[0.625rem] leading-none",
+            )}
+          >
+            {timeLabel}
+          </p>
+        </>
+      )}
     </div>
   );
 }
