@@ -1,4 +1,5 @@
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
+import { calendarRouter } from "@/server/api/routers/calendar";
 import { gmailRouter } from "@/server/api/routers/gmail";
 
 /**
@@ -8,6 +9,7 @@ import { gmailRouter } from "@/server/api/routers/gmail";
  */
 export const appRouter = createTRPCRouter({
   gmail: gmailRouter,
+  calendar: calendarRouter,
 });
 
 // export type definition of API

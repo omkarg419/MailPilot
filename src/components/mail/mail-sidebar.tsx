@@ -41,7 +41,7 @@ const MAIL_NAV: {
 ];
 
 type MailSidebarProps = {
-  activeWorkspace?: "mail" | "agent";
+  activeWorkspace?: "mail" | "agent" | "calendar";
   activeLabel: MailboxLabel;
   onLabelChange: (label: MailboxLabel) => void;
   onCompose: () => void;
@@ -60,6 +60,9 @@ export function MailSidebar({
   userImage,
 }: MailSidebarProps) {
   const isAgent = activeWorkspace === "agent";
+  const isCalendar = activeWorkspace === "calendar";
+  const leaveMailWorkspace = isAgent || isCalendar;
+
   return (
     <Sidebar collapsible="none" className="border-r border-sidebar-border">
       <SidebarHeader className="gap-4 p-4">
@@ -86,7 +89,7 @@ export function MailSidebar({
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                {isAgent ? (
+                {leaveMailWorkspace ? (
                   <SidebarMenuButton render={<Link href="/mail" />}>
                     <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
                     Inbox
@@ -102,7 +105,10 @@ export function MailSidebar({
                 )}
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton render={<Link href="/calendar" />}>
+                <SidebarMenuButton
+                  isActive={isCalendar}
+                  render={isCalendar ? undefined : <Link href="/calendar" />}
+                >
                   <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} />
                   Calendar
                 </SidebarMenuButton>
@@ -126,7 +132,7 @@ export function MailSidebar({
             <SidebarMenu>
               {MAIL_NAV.map(({ id, icon }) => (
                 <SidebarMenuItem key={id}>
-                  {isAgent ? (
+                  {leaveMailWorkspace ? (
                     <SidebarMenuButton render={<Link href="/mail" />}>
                       <HugeiconsIcon icon={icon} strokeWidth={2} />
                       {LABEL_NAMES[id]}

@@ -5,6 +5,7 @@ import { executeOperation } from "@/server/agent/execute-operation";
 import { eventTimeToMs, toGoogleCalendarEventTime, toRfc3339UtcIso } from "./utils";
 
 type CalendarEventItem = {
+  id?: string;
   summary?: string;
   start?: { date?: string; dateTime?: string; timeZone?: string };
   end?: { date?: string; dateTime?: string; timeZone?: string };
@@ -92,6 +93,7 @@ export async function findCalendarConflict(
   start: string,
   end: string,
   timeZone?: string,
+  excludeEventId?: string,
 ): Promise<CalendarConflictResult> {
   const eventStart = toGoogleCalendarEventTime(start, timeZone);
   const eventEnd = toGoogleCalendarEventTime(end, timeZone);
@@ -129,6 +131,7 @@ export async function findCalendarConflict(
   const items = (listResult.result as EventsListResult)?.items ?? [];
 
   for (const item of items) {
+    if (excludeEventId && item.id === excludeEventId) continue;
     const range = parseEventRange(item);
     if (!range) continue;
 
