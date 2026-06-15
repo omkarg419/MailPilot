@@ -9,6 +9,7 @@ import { AgentComposeBlock } from "@/components/agent/agent-compose-block";
 import { AgentTextBlock } from "@/components/agent/agent-text-block";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
@@ -492,7 +493,7 @@ export function AgentChat({
         </div>
       ) : (
         <>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="mx-auto flex w-full max-w-[850px] flex-col gap-6 px-4 py-8">
               {messages.map((message) => {
                 if (message.role === "user") {
@@ -581,7 +582,7 @@ export function AgentChat({
               })}
               <div ref={scrollRef} />
             </div>
-          </div>
+          </ScrollArea>
 
           <div className="shrink-0 border-t border-border/50 bg-background/80 py-4 backdrop-blur-sm">
             {toolStatus ? (
