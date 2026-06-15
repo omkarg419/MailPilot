@@ -60,6 +60,11 @@ function GridEventBlock({
     ? formatEventTimeCompact(event.start, event.end, event.allDay)
     : formatEventTimeShort(event.start, event.end, event.allDay);
 
+  const contentGap =
+    height >= 72 ? "gap-1.5" : height >= 48 ? "gap-1" : tiny ? "gap-0" : "gap-0.5";
+  const contentPad =
+    height >= 72 ? "py-1.5" : height >= 48 ? "py-1" : tiny ? "py-0" : "py-0.5";
+
   return (
     <div
       role="button"
@@ -79,8 +84,10 @@ function GridEventBlock({
       className={cn(
         "absolute z-10 flex cursor-pointer flex-col overflow-hidden rounded-[0.35rem]",
         "border border-primary/35 bg-primary/20 ring-1 ring-primary/20",
-        "px-1 hover:bg-primary/30",
-        tiny ? "justify-center py-0" : "justify-start gap-0 py-px",
+        "px-1.5 hover:bg-primary/30",
+        tiny ? "justify-center" : "justify-start",
+        contentGap,
+        contentPad,
       )}
       style={{
         top,
