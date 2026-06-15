@@ -41,6 +41,7 @@ const MAIL_NAV: {
 ];
 
 type MailSidebarProps = {
+  activeWorkspace?: "mail" | "agent";
   activeLabel: MailboxLabel;
   onLabelChange: (label: MailboxLabel) => void;
   onCompose: () => void;
@@ -50,6 +51,7 @@ type MailSidebarProps = {
 };
 
 export function MailSidebar({
+  activeWorkspace = "mail",
   activeLabel,
   onLabelChange,
   onCompose,
@@ -57,6 +59,7 @@ export function MailSidebar({
   userName,
   userImage,
 }: MailSidebarProps) {
+  const isAgent = activeWorkspace === "agent";
   return (
     <Sidebar collapsible="none" className="border-r border-sidebar-border">
       <SidebarHeader className="gap-4 p-4">
@@ -83,13 +86,20 @@ export function MailSidebar({
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={activeLabel === "INBOX"}
-                  onClick={() => onLabelChange("INBOX")}
-                >
-                  <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
-                  Inbox
-                </SidebarMenuButton>
+                {isAgent ? (
+                  <SidebarMenuButton render={<Link href="/mail" />}>
+                    <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
+                    Inbox
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    isActive={activeLabel === "INBOX"}
+                    onClick={() => onLabelChange("INBOX")}
+                  >
+                    <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
+                    Inbox
+                  </SidebarMenuButton>
+                )}
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton render={<Link href="/calendar" />}>
@@ -98,7 +108,10 @@ export function MailSidebar({
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton render={<Link href="/agent" />}>
+                <SidebarMenuButton
+                  isActive={isAgent}
+                  render={isAgent ? undefined : <Link href="/agent" />}
+                >
                   <HugeiconsIcon icon={AiUserIcon} strokeWidth={2} />
                   Agent
                 </SidebarMenuButton>
@@ -113,13 +126,20 @@ export function MailSidebar({
             <SidebarMenu>
               {MAIL_NAV.map(({ id, icon }) => (
                 <SidebarMenuItem key={id}>
-                  <SidebarMenuButton
-                    isActive={activeLabel === id}
-                    onClick={() => onLabelChange(id)}
-                  >
-                    <HugeiconsIcon icon={icon} strokeWidth={2} />
-                    {LABEL_NAMES[id]}
-                  </SidebarMenuButton>
+                  {isAgent ? (
+                    <SidebarMenuButton render={<Link href="/mail" />}>
+                      <HugeiconsIcon icon={icon} strokeWidth={2} />
+                      {LABEL_NAMES[id]}
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarMenuButton
+                      isActive={activeLabel === id}
+                      onClick={() => onLabelChange(id)}
+                    >
+                      <HugeiconsIcon icon={icon} strokeWidth={2} />
+                      {LABEL_NAMES[id]}
+                    </SidebarMenuButton>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

@@ -118,6 +118,7 @@ export function MailClient({
   return (
     <SidebarProvider className="flex h-svh w-full overflow-hidden bg-background text-foreground">
       <MailSidebar
+        activeWorkspace="mail"
         activeLabel={label}
         onLabelChange={onLabelChange}
         onCompose={() => setCompose({})}

@@ -2,19 +2,13 @@
 
 import { useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  AiUserIcon,
-  ArrowUp02Icon,
-  Loading03Icon,
-} from "@hugeicons/core-free-icons";
+import { ArrowUp02Icon, Loading03Icon } from "@hugeicons/core-free-icons";
 
 import { AgentCalendarBlock } from "@/components/agent/agent-calendar-block";
 import { AgentComposeBlock } from "@/components/agent/agent-compose-block";
 import { AgentTextBlock } from "@/components/agent/agent-text-block";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
@@ -35,13 +29,25 @@ import type {
 } from "@/types/agent-chat";
 import { assistantBlocksToHistoryContent } from "@/types/agent-chat";
 
-const EXAMPLE_PROMPTS = [
-  "Summarize my unread inbox",
-  "Draft a professional email to alex@example.com about our project update",
-  "Book a 30-minute meeting tomorrow at 3pm",
+const SUGGESTIONS = [
+  {
+    label: "Summarize my unread inbox",
+    prompt: "Summarize my unread inbox",
+  },
+  {
+    label: "Draft a professional email",
+    prompt:
+      "Draft a professional email to alex@example.com about our project update",
+  },
+  {
+    label: "Book a 30-minute meeting",
+    prompt: "Book a 30-minute meeting tomorrow at 3pm",
+  },
 ] as const;
 
 type AgentChatProps = {
+  userName?: string;
+  userEmail?: string;
   context?: AgentChatContext;
   className?: string;
 };
@@ -54,9 +60,7 @@ function parseSseChunk(
   const rest = parts.pop() ?? "";
 
   for (const part of parts) {
-    const line = part
-      .split("\n")
-      .find((l) => l.startsWith("data: "));
+    const line = part.split("\n").find((l) => l.startsWith("data: "));
     if (!line) continue;
     try {
       onEvent(JSON.parse(line.slice(6)) as AgentStreamEvent);
@@ -205,7 +209,107 @@ function getPrecedingUserMessage(
   return null;
 }
 
-export function AgentChat({ context, className }: AgentChatProps) {
+function getFirstName(userName?: string, userEmail?: string): string {
+  const fromName = userName?.trim().split(/\s+/)[0];
+  if (fromName) return fromName;
+  const fromEmail = userEmail?.split("@")[0];
+  if (fromEmail) return fromEmail;
+  return "there";
+}
+
+function formatToolStatus(name: string, input: unknown): string {
+  if (name === "check_calendar_availability") return "Checking Calendar…";
+  if (name === "propose_calendar_event") return "Creating Event…";
+  if (name === "draft_email" || name === "stream_email_body_chunk") {
+    return "Drafting Email…";
+  }
+  if (name === "execute_operation") {
+    const plugin = (input as { plugin?: string })?.plugin;
+    if (plugin === "googlecalendar") return "Checking Calendar…";
+    if (plugin === "gmail") return "Searching Gmail…";
+    return "Working…";
+  }
+  return "Working…";
+}
+
+type AgentInputAreaProps = {
+  input: string;
+  onInputChange: (value: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  isStreaming: boolean;
+  showSuggestions: boolean;
+  onSuggestionClick: (prompt: string) => void;
+};
+
+function AgentInputArea({
+  input,
+  onInputChange,
+  onSubmit,
+  isStreaming,
+  showSuggestions,
+  onSuggestionClick,
+}: AgentInputAreaProps) {
+  return (
+    <div className="mx-auto w-full max-w-[800px] px-4">
+      <form onSubmit={onSubmit} className="relative">
+        <Textarea
+          value={input}
+          onChange={(e) => onInputChange(e.target.value)}
+          placeholder="Ask MailPilot Agent…"
+          disabled={isStreaming}
+          rows={1}
+          className={cn(
+            "min-h-12 max-h-40 resize-none rounded-2xl border-border bg-background py-3.5 pr-14 pl-4",
+            "text-[15px] shadow-sm transition-shadow",
+            "focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/20",
+          )}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onSubmit(e);
+            }
+          }}
+        />
+        <Button
+          type="submit"
+          size="icon-sm"
+          disabled={isStreaming || !input.trim()}
+          className="absolute right-2 bottom-2 size-9 rounded-xl"
+          aria-label="Send message"
+        >
+          <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} />
+        </Button>
+      </form>
+
+      {showSuggestions ? (
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+          {SUGGESTIONS.map(({ label, prompt }) => (
+            <button
+              key={label}
+              type="button"
+              disabled={isStreaming}
+              onClick={() => onSuggestionClick(prompt)}
+              className={cn(
+                "rounded-full border border-border bg-muted/30 px-4 py-2 text-sm text-foreground",
+                "transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md hover:shadow-primary/10",
+                "disabled:pointer-events-none disabled:opacity-50",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function AgentChat({
+  userName,
+  userEmail,
+  context,
+  className,
+}: AgentChatProps) {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -213,6 +317,9 @@ export function AgentChat({ context, className }: AgentChatProps) {
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
+
+  const firstName = getFirstName(userName, userEmail);
+  const isEmpty = messages.length === 0;
 
   const nextId = () => {
     idRef.current += 1;
@@ -294,16 +401,13 @@ export function AgentChat({ context, className }: AgentChatProps) {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId && m.role === "assistant"
-                  ? {
-                      ...m,
-                      blocks: applyStreamEvent(m.blocks, event),
-                    }
+                  ? { ...m, blocks: applyStreamEvent(m.blocks, event) }
                   : m,
               ),
             );
             scrollToBottom();
           } else if (event.type === "tool_start") {
-            setToolStatus(`Running ${event.name}…`);
+            setToolStatus(formatToolStatus(event.name, event.input));
           } else if (event.type === "tool_end") {
             setToolStatus(null);
           } else if (event.type === "error") {
@@ -358,59 +462,47 @@ export function AgentChat({ context, className }: AgentChatProps) {
     );
   };
 
+  const inputArea = (
+    <AgentInputArea
+      input={input}
+      onInputChange={setInput}
+      onSubmit={onSubmit}
+      isStreaming={isStreaming}
+      showSuggestions={isEmpty}
+      onSuggestionClick={(prompt) => void sendMessage(prompt)}
+    />
+  );
+
   return (
-    <Card
-      className={cn(
-        "flex h-[min(720px,calc(100svh-8rem))] flex-col border-border/80 bg-card/95 shadow-xl backdrop-blur-sm",
-        className,
-      )}
-    >
-      <CardHeader className="shrink-0 border-b border-border pb-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
-            <HugeiconsIcon icon={AiUserIcon} strokeWidth={2} className="size-5" />
-          </div>
-          <div>
-            <CardTitle className="text-lg font-semibold">MailPilot Agent</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Gmail &amp; Calendar actions via natural language
+    <div className={cn("flex h-full min-h-0 flex-col", className)}>
+      {isEmpty ? (
+        <div className="flex flex-1 flex-col items-center justify-center px-4 pb-8">
+          <div className="mb-10 max-w-lg text-center">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              Hey there, {firstName}
+            </h1>
+            <p className="mt-3 text-lg text-muted-foreground">
+              What can I help you with today?
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground/80">
+              Natural language control for Gmail and Google Calendar.
             </p>
           </div>
+          {inputArea}
         </div>
-      </CardHeader>
-
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-0">
-        <ScrollArea className="min-h-0 flex-1 px-4 pt-4">
-          {messages.length === 0 ? (
-            <div className="flex flex-col gap-4 pb-4">
-              <p className="text-sm text-muted-foreground">
-                Ask me to search mail, summarize your inbox, draft emails, or
-                book meetings.
-              </p>
-              <div className="flex flex-col gap-2">
-                {EXAMPLE_PROMPTS.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    disabled={isStreaming}
-                    onClick={() => void sendMessage(prompt)}
-                    className="rounded-lg border border-border/70 bg-muted/40 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent disabled:opacity-50"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4 pb-4">
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto flex w-full max-w-[850px] flex-col gap-6 px-4 py-8">
               {messages.map((message) => {
                 if (message.role === "user") {
                   return (
-                    <div
-                      key={message.id}
-                      className="ml-auto max-w-[85%] rounded-2xl bg-primary px-4 py-2.5 text-sm text-primary-foreground"
-                    >
-                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    <div key={message.id} className="flex justify-end">
+                      <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-2.5 text-[15px] text-primary-foreground">
+                        <p className="whitespace-pre-wrap leading-relaxed">
+                          {message.content}
+                        </p>
+                      </div>
                     </div>
                   );
                 }
@@ -418,13 +510,16 @@ export function AgentChat({ context, className }: AgentChatProps) {
                 const empty = isAssistantEmpty(message.blocks);
 
                 return (
-                  <div key={message.id} className="mr-auto flex max-w-full flex-col gap-3">
+                  <div
+                    key={message.id}
+                    className="flex w-full flex-col gap-4"
+                  >
                     {empty && isStreaming ? (
                       <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                         <HugeiconsIcon
                           icon={Loading03Icon}
                           strokeWidth={2}
-                          className="size-3.5 animate-spin"
+                          className="size-4 animate-spin"
                         />
                         Thinking…
                       </span>
@@ -486,51 +581,51 @@ export function AgentChat({ context, className }: AgentChatProps) {
               })}
               <div ref={scrollRef} />
             </div>
-          )}
-        </ScrollArea>
-
-        {error ? (
-          <div className="px-4">
-            <Alert variant="destructive">
-              <AlertTitle>Agent error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
           </div>
-        ) : null}
 
-        {toolStatus ? (
-          <p className="px-4 text-xs text-muted-foreground">{toolStatus}</p>
-        ) : null}
+          <div className="shrink-0 border-t border-border/50 bg-background/80 py-4 backdrop-blur-sm">
+            {toolStatus ? (
+              <p className="mx-auto mb-3 flex w-full max-w-[800px] items-center gap-2 px-4 text-sm text-muted-foreground">
+                <HugeiconsIcon
+                  icon={Loading03Icon}
+                  strokeWidth={2}
+                  className="size-3.5 animate-spin text-primary"
+                />
+                {toolStatus}
+              </p>
+            ) : null}
+            {error ? (
+              <div className="mx-auto mb-3 w-full max-w-[800px] px-4">
+                <Alert variant="destructive">
+                  <AlertTitle>Agent error</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              </div>
+            ) : null}
+            {inputArea}
+          </div>
+        </>
+      )}
 
-        <form
-          onSubmit={onSubmit}
-          className="flex shrink-0 gap-2 border-t border-border p-4"
-        >
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask MailPilot Agent…"
-            disabled={isStreaming}
-            rows={2}
-            className="min-h-0 resize-none"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void sendMessage(input);
-              }
-            }}
+      {isEmpty && error ? (
+        <div className="mx-auto mt-4 w-full max-w-[800px] px-4 pb-4">
+          <Alert variant="destructive">
+            <AlertTitle>Agent error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
+
+      {isEmpty && toolStatus ? (
+        <p className="mx-auto mt-4 flex w-full max-w-[800px] items-center justify-center gap-2 px-4 pb-4 text-sm text-muted-foreground">
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            strokeWidth={2}
+            className="size-3.5 animate-spin text-primary"
           />
-          <Button
-            type="submit"
-            size="icon-lg"
-            disabled={isStreaming || !input.trim()}
-            className="shrink-0 self-end rounded-lg"
-            aria-label="Send message"
-          >
-            <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} />
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+          {toolStatus}
+        </p>
+      ) : null}
+    </div>
   );
 }
