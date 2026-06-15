@@ -7,6 +7,7 @@ import {
   Cancel01Icon,
   CheckmarkCircle02Icon,
   Clock01Icon,
+  Delete02Icon,
   Loading03Icon,
   NoteIcon,
   PencilEdit01Icon,
@@ -48,7 +49,9 @@ type CalendarEventDialogProps = {
   onFormChange: (form: EventFormState) => void;
   formError: string | null;
   isSaving: boolean;
+  isDeleting?: boolean;
   onSubmit: (e: React.FormEvent) => void;
+  onDelete?: () => void;
 };
 
 function EventFieldLabel({
@@ -79,9 +82,12 @@ export function CalendarEventDialog({
   onFormChange,
   formError,
   isSaving,
+  isDeleting = false,
   onSubmit,
+  onDelete,
 }: CalendarEventDialogProps) {
   const isEdit = Boolean(editingEvent);
+  const isBusy = isSaving || isDeleting;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -118,7 +124,7 @@ export function CalendarEventDialog({
                   variant="ghost"
                   size="icon-sm"
                   className="shrink-0 rounded-[0.5rem] text-muted-foreground"
-                  disabled={isSaving}
+                  disabled={isBusy}
                 />
               }
             >
@@ -140,7 +146,7 @@ export function CalendarEventDialog({
                   value={form.title}
                   onChange={(e) => onFormChange({ ...form, title: e.target.value })}
                   placeholder="Team sync, dentist, …"
-                  disabled={isSaving}
+                  disabled={isBusy}
                   autoFocus
                 />
               </InputGroup>
@@ -160,7 +166,7 @@ export function CalendarEventDialog({
                     onChange={(e) =>
                       onFormChange({ ...form, start: `${e.target.value}:00` })
                     }
-                    disabled={isSaving}
+                    disabled={isBusy}
                     className="text-sm"
                   />
                 </InputGroup>
@@ -178,7 +184,7 @@ export function CalendarEventDialog({
                     onChange={(e) =>
                       onFormChange({ ...form, end: `${e.target.value}:00` })
                     }
-                    disabled={isSaving}
+                    disabled={isBusy}
                     className="text-sm"
                   />
                 </InputGroup>
@@ -202,7 +208,7 @@ export function CalendarEventDialog({
                     onFormChange({ ...form, description: e.target.value })
                   }
                   placeholder="Agenda, location, or notes…"
-                  disabled={isSaving}
+                  disabled={isBusy}
                   rows={3}
                   className="min-h-24 text-sm"
                 />
@@ -220,38 +226,67 @@ export function CalendarEventDialog({
             </div>
           ) : null}
 
-          <DialogFooter className="flex-row justify-end gap-2 border-t border-border bg-muted/20 px-5 py-4 sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-[0.5rem]"
-              onClick={() => onOpenChange(false)}
-              disabled={isSaving}
-            >
-              <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className={cn("rounded-[0.5rem]", isSaving && "min-w-32")}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <>
-                  <HugeiconsIcon
-                    icon={Loading03Icon}
-                    strokeWidth={2}
-                    className="animate-spin"
-                  />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />
-                  {isEdit ? "Save changes" : "Create event"}
-                </>
-              )}
-            </Button>
+          <DialogFooter className="flex-row items-center justify-between gap-2 border-t border-border bg-muted/20 px-5 py-4 sm:justify-between">
+            {isEdit && onDelete ? (
+              <Button
+                type="button"
+                variant="destructive"
+                className="rounded-[0.5rem]"
+                onClick={onDelete}
+                disabled={isBusy}
+              >
+                {isDeleting ? (
+                  <>
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      strokeWidth={2}
+                      className="animate-spin"
+                    />
+                    Deleting…
+                  </>
+                ) : (
+                  <>
+                    <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} />
+                    Delete
+                  </>
+                )}
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-[0.5rem]"
+                onClick={() => onOpenChange(false)}
+                disabled={isBusy}
+              >
+                <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className={cn("rounded-[0.5rem]", isSaving && "min-w-32")}
+                disabled={isBusy}
+              >
+                {isSaving ? (
+                  <>
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      strokeWidth={2}
+                      className="animate-spin"
+                    />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <HugeiconsIcon icon={CheckmarkCircle02Icon} strokeWidth={2} />
+                    {isEdit ? "Save changes" : "Create event"}
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

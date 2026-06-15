@@ -181,4 +181,26 @@ export const calendarRouter = createTRPCRouter({
         wrapError(err, "updateEvent");
       }
     }),
+
+  deleteEvent: protectedProcedure
+    .input(
+      z.object({
+        eventId: z.string().min(1),
+        calendarId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tenantId = ctx.session.user.id;
+      const calendarId = input.calendarId ?? "primary";
+
+      try {
+        await calendarFor(tenantId).api.events.delete({
+          calendarId,
+          id: input.eventId,
+        });
+        return { success: true as const };
+      } catch (err) {
+        wrapError(err, "deleteEvent");
+      }
+    }),
 });

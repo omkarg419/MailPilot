@@ -92,6 +92,17 @@ export function CalendarWeekView({
     onError: (e) => setFormError(e.message),
   });
 
+  const deleteEvent = api.calendar.deleteEvent.useMutation({
+    onSuccess: async () => {
+      await utils.calendar.listEvents.invalidate();
+      setDialogOpen(false);
+      setForm(emptyForm());
+      setEditingEvent(null);
+      setFocusEventId(null);
+    },
+    onError: (e) => setFormError(e.message),
+  });
+
   function openCreateWithTimes(start: string, end: string) {
     setEditingEvent(null);
     setForm({ title: "", start, end, description: "" });
@@ -146,6 +157,12 @@ export function CalendarWeekView({
   }
 
   const isSaving = createEvent.isPending || updateEvent.isPending;
+
+  function handleDelete() {
+    if (!editingEvent) return;
+    setFormError(null);
+    deleteEvent.mutate({ eventId: editingEvent.id });
+  }
 
   const handleSelectDay = useCallback(
     (day: Date) => {
@@ -279,7 +296,9 @@ export function CalendarWeekView({
         onFormChange={setForm}
         formError={formError}
         isSaving={isSaving}
+        isDeleting={deleteEvent.isPending}
         onSubmit={handleSubmit}
+        onDelete={handleDelete}
       />
     </div>
   );
