@@ -259,9 +259,9 @@ function AgentInputArea({
           disabled={isStreaming}
           rows={1}
           className={cn(
-            "min-h-12 max-h-40 resize-none rounded-2xl border-border bg-background py-3.5 pr-14 pl-4",
-            "text-[15px] shadow-sm transition-shadow",
-            "focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/20",
+            "min-h-12 max-h-40 resize-none rounded-full border-border bg-background py-3.5 pr-14 pl-4",
+            "text-[15px] shadow-sm transition-shadow rounded-full",
+            "focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/20 rounded-full",
           )}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -274,7 +274,7 @@ function AgentInputArea({
           type="submit"
           size="icon-sm"
           disabled={isStreaming || !input.trim()}
-          className="absolute right-2 bottom-2 size-9 rounded-xl"
+          className="absolute right-2 bottom-2 size-9 rounded-full"
           aria-label="Send message"
         >
           <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} />
@@ -498,7 +498,7 @@ export function AgentChat({
                 if (message.role === "user") {
                   return (
                     <div key={message.id} className="flex justify-end">
-                      <div className="max-w-[85%] rounded-2xl bg-primary px-4 py-2.5 text-[15px] text-primary-foreground">
+                      <div className="max-w-[85%] overflow-hidden rounded-[1.2rem] bg-primary px-4 py-2 text-[15px] text-primary-foreground">
                         <p className="whitespace-pre-wrap leading-relaxed">
                           {message.content}
                         </p>
