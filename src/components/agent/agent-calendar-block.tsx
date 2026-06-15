@@ -81,20 +81,20 @@ export function AgentCalendarBlock({
       });
       const data = (await res.json()) as { status?: string; error?: string };
       if (!res.ok) {
-        onStatusChange?.(id, "failed", data.error ?? "Could not book meeting.");
+        onStatusChange?.(id, "failed", data.error ?? "Could not book event.");
         return;
       }
-      onStatusChange?.(id, "booked", "Meeting scheduled.");
+      onStatusChange?.(id, "booked", "Event scheduled.");
       onBooked?.({ title, start, end, attendees });
     } catch {
-      onStatusChange?.(id, "failed", "Could not book meeting.");
+      onStatusChange?.(id, "failed", "Could not book event.");
     } finally {
       setIsBooking(false);
     }
   }
 
   function handleCancel() {
-    onStatusChange?.(id, "failed", "Meeting not scheduled.");
+    onStatusChange?.(id, "failed", "Event not scheduled.");
   }
 
   const isDone = status === "booked" || status === "failed";
@@ -171,7 +171,7 @@ export function AgentCalendarBlock({
                 Booking…
               </>
             ) : (
-              "Book meeting"
+              "Book Event"
             )}
           </Button>
           <Button
