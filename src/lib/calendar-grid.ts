@@ -286,6 +286,22 @@ export function isEventUpcomingOnDay(
   return start.getTime() > now.getTime();
 }
 
+/** Side panel: upcoming events first, then past — each group by start time. */
+export function eventsOnDayForSidePanel(
+  events: CalendarEventView[],
+  day: Date,
+  now: Date = new Date(),
+): CalendarEventView[] {
+  const list = eventsOnDay(events, day);
+  const upcoming: CalendarEventView[] = [];
+  const past: CalendarEventView[] = [];
+  for (const event of list) {
+    if (isEventUpcomingOnDay(event, day, now)) upcoming.push(event);
+    else past.push(event);
+  }
+  return [...upcoming, ...past];
+}
+
 /** Scroll offset (px) to bring an event into view on the time grid. */
 export function gridScrollTopForEvent(
   event: CalendarEventView,

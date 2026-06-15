@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
-  eventsOnDay,
+  eventsOnDayForSidePanel,
   formatEventTimeShort,
   isEventUpcomingOnDay,
   isToday,
@@ -42,10 +42,71 @@ export function CalendarSidePanel({
   onSelectDay,
   onEventSelect,
 }: CalendarSidePanelProps) {
-  const dayEvents = useMemo(
-    () => eventsOnDay(events, selectedDay),
-    [events, selectedDay],
-  );
+  const { upcomingEvents, pastEvents } = useMemo(() => {
+    const sorted = eventsOnDayForSidePanel(events, selectedDay);
+    let splitAt = 0;
+    while (
+      splitAt < sorted.length &&
+      isEventUpcomingOnDay(sorted[splitAt]!, selectedDay)
+    ) {
+      splitAt++;
+    }
+    return {
+      upcomingEvents: sorted.slice(0, splitAt),
+      pastEvents: sorted.slice(splitAt),
+    };
+  }, [events, selectedDay]);
+
+  const hasEvents = upcomingEvents.length > 0 || pastEvents.length > 0;
+
+  function renderEvent(event: CalendarEventView) {
+    const focused = focusEventId === event.id;
+    const upcoming = isEventUpcomingOnDay(event, selectedDay);
+    return (
+      <li key={event.id}>
+        <button
+          type="button"
+          onClick={() => onEventSelect(event)}
+          className={cn(
+            "w-full rounded-[0.5rem] border px-3 py-2 text-left transition-colors",
+            focused
+              ? "border-primary/50 bg-primary/15 ring-1 ring-primary/30"
+              : "border-border bg-background hover:border-primary/30 hover:bg-muted/40",
+            !upcoming && !focused && "opacity-80",
+          )}
+        >
+          <p
+            className={cn(
+              "truncate text-sm font-medium",
+              upcoming ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {event.title}
+          </p>
+          <p
+            className={cn(
+              "mt-0.5 flex items-center gap-1.5 truncate text-xs",
+              upcoming ? "text-foreground/80" : "text-muted-foreground",
+            )}
+          >
+            <span
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded-[0.25rem]",
+                upcoming ? "bg-primary/15 text-primary" : "text-muted-foreground",
+              )}
+            >
+              <HugeiconsIcon
+                icon={upcoming ? Clock01Icon : Tick02Icon}
+                strokeWidth={2}
+                className="size-2.5"
+              />
+            </span>
+            {formatEventTimeShort(event.start, event.end, event.allDay)}
+          </p>
+        </button>
+      </li>
+    );
+  }
 
   return (
     <aside
@@ -71,80 +132,25 @@ export function CalendarSidePanel({
             <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               {formatDayListHeading(selectedDay)}
             </h2>
-            {dayEvents.length === 0 ? (
+            {hasEvents ? (
+              <ul className="flex flex-col gap-1.5">
+                {upcomingEvents.map(renderEvent)}
+                {upcomingEvents.length > 0 && pastEvents.length > 0 ? (
+                  <li
+                    aria-hidden
+                    className="my-0.5 list-none border-t border-border/80"
+                  />
+                ) : null}
+                {pastEvents.map(renderEvent)}
+              </ul>
+            ) : (
               <p className="rounded-[0.5rem] border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
                 No events this day
               </p>
-            ) : (
-              <ul className="flex flex-col gap-1.5">
-                {dayEvents.map((event) => {
-                  const focused = focusEventId === event.id;
-                  const upcoming = isEventUpcomingOnDay(event, selectedDay);
-                  return (
-                    <li key={event.id}>
-                      <button
-                        type="button"
-                        onClick={() => onEventSelect(event)}
-                        className={cn(
-                          "w-full rounded-[0.5rem] border px-3 py-2 text-left transition-colors",
-                          focused
-                            ? "border-primary/50 bg-primary/15 ring-1 ring-primary/30"
-                            : "border-border bg-background hover:border-primary/30 hover:bg-muted/40",
-                          !upcoming && !focused && "opacity-80",
-                        )}
-                      >
-                        <p
-                          className={cn(
-                            "truncate text-sm font-medium",
-                            upcoming ? "text-foreground" : "text-muted-foreground",
-                          )}
-                        >
-                          {event.title}
-                        </p>
-                        <p
-                          className={cn(
-                            "mt-0.5 flex items-center gap-1.5 truncate text-xs",
-                            upcoming ? "text-foreground/80" : "text-muted-foreground",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "flex size-4 shrink-0 items-center justify-center rounded-[0.25rem]",
-                              upcoming ? "bg-primary/15 text-primary" : "text-muted-foreground",
-                            )}
-                          >
-                            <HugeiconsIcon
-                              icon={upcoming ? Clock01Icon : Tick02Icon}
-                              strokeWidth={2}
-                              className="size-2.5"
-                            />
-                          </span>
-                          {formatEventTimeShort(event.start, event.end, event.allDay)}
-                        </p>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
             )}
           </section>
 
-          {/* <section className="flex flex-col gap-3">
-            <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Calendars
-            </h2>
-            <Card size="sm" className="rounded-[0.5rem] bg-background [--card-spacing:--spacing(3)]">
-              <CardContent className="flex items-start gap-2">
-                <Checkbox id="cal-primary" defaultChecked disabled className="mt-0.5" />
-                <Label
-                  htmlFor="cal-primary"
-                  className="min-w-0 flex-1 cursor-default text-sm leading-snug font-normal"
-                >
-                  {userEmail || "Primary calendar"}
-                </Label>
-              </CardContent>
-            </Card>
-          </section> */}
+          
         </div>
       </ScrollArea>
     </aside>

@@ -12,7 +12,7 @@ export default async function ConnectPage() {
 
   const { gmail, calendar } = await getConnectionFlags(session.user.id);
   if (gmail && calendar) {
-    redirect("/mail");
+    redirect("/agent");
   }
 
   return (

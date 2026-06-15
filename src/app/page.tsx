@@ -34,7 +34,7 @@ export default async function Home() {
 
   if (session?.user) {
     const { gmail, calendar } = await getConnectionFlags(session.user.id);
-    redirect(gmail && calendar ? "/mail" : "/connect");
+    redirect(gmail && calendar ? "/agent" : "/connect");
   }
 
   return (
