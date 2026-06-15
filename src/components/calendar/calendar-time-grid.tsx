@@ -5,7 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Calendar03Icon } from "@hugeicons/core-free-icons";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import {
   Empty,
   EmptyDescription,
@@ -33,6 +33,73 @@ import {
 } from "@/lib/calendar-grid";
 
 import type { CalendarEventView } from "@/server/api/routers/calendar";
+
+/** Min card height (px) before showing the time line below the title. */
+const SHOW_TIME_MIN_HEIGHT_PX = 44;
+
+function GridEventBlock({
+  layout,
+  onEventClick,
+}: {
+  layout: {
+    event: CalendarEventView;
+    top: number;
+    height: number;
+    column: number;
+    totalColumns: number;
+  };
+  onEventClick: (event: CalendarEventView) => void;
+}) {
+  const { event, top, height, column, totalColumns } = layout;
+  const widthPct = 100 / totalColumns;
+  const leftPct = column * widthPct;
+  const showTime = height >= SHOW_TIME_MIN_HEIGHT_PX;
+  const compact = height < 32;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={(e) => {
+        e.stopPropagation();
+        onEventClick(event);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          onEventClick(event);
+        }
+      }}
+      className={cn(
+        "absolute z-10 flex cursor-pointer flex-col overflow-hidden rounded-[0.35rem]",
+        "border border-primary/35 bg-primary/20 ring-1 ring-primary/20",
+        "px-1 py-px hover:bg-primary/30",
+        compact ? "justify-center" : "justify-start gap-px",
+      )}
+      style={{
+        top,
+        height,
+        left: `calc(${leftPct}% + 2px)`,
+        width: `calc(${widthPct}% - 4px)`,
+      }}
+    >
+      <p
+        className={cn(
+          "truncate font-semibold text-foreground",
+          compact ? "text-[0.625rem] leading-none" : "text-[0.6875rem] leading-tight",
+        )}
+      >
+        {event.title}
+      </p>
+      {showTime ? (
+        <p className="truncate text-[0.625rem] leading-none text-muted-foreground">
+          {formatEventTimeShort(event.start, event.end, event.allDay)}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 type CalendarTimeGridProps = {
   weekStart: Date;
@@ -295,53 +362,13 @@ export function CalendarTimeGrid({
                   />
                 ))}
 
-                {layouts.map((layout) => {
-                  const widthPct = 100 / layout.totalColumns;
-                  const leftPct = layout.column * widthPct;
-                  return (
-                    <Card
-                      key={`${layout.event.id}-${key}`}
-                      size="sm"
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEventClick(layout.event);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onEventClick(layout.event);
-                        }
-                      }}
-                      className={cn(
-                        "absolute z-10 cursor-pointer overflow-hidden rounded-[0.35rem]",
-                        "bg-primary/20 py-1 ring-primary/35 hover:bg-primary/30",
-                        "[--card-spacing:--spacing(1.5)]",
-                      )}
-                      style={{
-                        top: layout.top,
-                        height: layout.height,
-                        left: `calc(${leftPct}% + 2px)`,
-                        width: `calc(${widthPct}% - 4px)`,
-                      }}
-                    >
-                      <CardTitle className="truncate px-1.5 text-[0.7rem] leading-tight font-semibold">
-                        {layout.event.title}
-                      </CardTitle>
-                      {layout.height >= 36 ? (
-                        <CardDescription className="truncate px-1.5 text-[0.65rem]">
-                          {formatEventTimeShort(
-                            layout.event.start,
-                            layout.event.end,
-                            layout.event.allDay,
-                          )}
-                        </CardDescription>
-                      ) : null}
-                    </Card>
-                  );
-                })}
+                {layouts.map((layout) => (
+                  <GridEventBlock
+                    key={`${layout.event.id}-${key}`}
+                    layout={layout}
+                    onEventClick={onEventClick}
+                  />
+                ))}
               </div>
             );
           })}
