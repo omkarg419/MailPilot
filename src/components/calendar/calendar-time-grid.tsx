@@ -2,9 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Loading03Icon } from "@hugeicons/core-free-icons";
+import { Calendar03Icon } from "@hugeicons/core-free-icons";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   GRID_HEIGHT_PX,
@@ -34,6 +44,43 @@ type CalendarTimeGridProps = {
   onSlotClick: (start: string, end: string) => void;
 };
 
+function CalendarGridSkeleton() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="grid shrink-0 border-b border-border [grid-template-columns:3.5rem_repeat(7,minmax(0,1fr))]">
+        <div className="border-r border-border" />
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex flex-col items-center gap-1 border-r border-border py-2 last:border-r-0"
+          >
+            <Skeleton className="h-3 w-8" />
+            <Skeleton className="size-7 rounded-[0.5rem]" />
+          </div>
+        ))}
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div
+          className="grid [grid-template-columns:3.5rem_repeat(7,minmax(0,1fr))]"
+          style={{ minHeight: GRID_HEIGHT_PX }}
+        >
+          <div className="border-r border-border p-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="mb-12 h-3 w-8" />
+            ))}
+          </div>
+          {Array.from({ length: 7 }).map((_, col) => (
+            <div key={col} className="border-r border-border p-2 last:border-r-0">
+              <Skeleton className="mb-24 h-16 w-full rounded-[0.35rem]" />
+              <Skeleton className="h-12 w-full rounded-[0.35rem]" />
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
 export function CalendarTimeGrid({
   weekStart,
   events,
@@ -43,7 +90,7 @@ export function CalendarTimeGrid({
   onEventClick,
   onSlotClick,
 }: CalendarTimeGridProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const [nowTop, setNowTop] = useState<number | null>(() => nowLineTopPx());
 
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
@@ -70,6 +117,13 @@ export function CalendarTimeGrid({
     [allDayByDay],
   );
 
+  const hasTimedEvents = useMemo(
+    () => [...layoutsByDay.values()].some((list) => list.length > 0),
+    [layoutsByDay],
+  );
+
+  const weekIsEmpty = !hasAllDay && !hasTimedEvents;
+
   useEffect(() => {
     const tick = () => setNowTop(nowLineTopPx());
     tick();
@@ -78,7 +132,7 @@ export function CalendarTimeGrid({
   }, []);
 
   useEffect(() => {
-    const el = scrollRef.current;
+    const el = viewportRef.current;
     if (!el) return;
     const defaultScroll = Math.max(0, 7 * HOUR_HEIGHT_PX - el.clientHeight / 2);
     el.scrollTop = defaultScroll;
@@ -92,12 +146,7 @@ export function CalendarTimeGrid({
   }
 
   if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">
-        <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="size-5 animate-spin" />
-        Loading events…
-      </div>
-    );
+    return <CalendarGridSkeleton />;
   }
 
   if (isError) {
@@ -157,17 +206,27 @@ export function CalendarTimeGrid({
                 className="min-h-7 border-r border-border p-1 last:border-r-0"
               >
                 {dayEvents.map((event) => (
-                  <button
+                  <Card
                     key={`${event.id}-${key}`}
-                    type="button"
+                    size="sm"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onEventClick(event)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onEventClick(event);
+                      }
+                    }}
                     className={cn(
-                      "mb-0.5 w-full truncate rounded-[0.35rem] border border-primary/30 bg-primary/15 px-1.5 py-0.5",
-                      "text-left text-[0.7rem] font-medium text-foreground hover:bg-primary/25",
+                      "mb-0.5 cursor-pointer rounded-[0.35rem] bg-primary/15 py-1 ring-primary/30",
+                      "hover:bg-primary/25 [--card-spacing:--spacing(1.5)]",
                     )}
                   >
-                    {event.title}
-                  </button>
+                    <CardTitle className="truncate px-1.5 text-[0.7rem] font-medium">
+                      {event.title}
+                    </CardTitle>
+                  </Card>
                 ))}
               </div>
             );
@@ -176,7 +235,21 @@ export function CalendarTimeGrid({
       ) : null}
 
       {/* Scrollable time grid */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <ScrollArea viewportRef={viewportRef} className="relative min-h-0 flex-1">
+        {weekIsEmpty ? (
+          <Empty className="absolute inset-x-0 top-24 z-10 mx-auto max-w-sm border-0 bg-transparent">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} />
+              </EmptyMedia>
+              <EmptyTitle>No events this week</EmptyTitle>
+              <EmptyDescription>
+                Click any time slot to schedule something.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : null}
+
         <div
           className="relative grid [grid-template-columns:3.5rem_repeat(7,minmax(0,1fr))]"
           style={{ minHeight: GRID_HEIGHT_PX }}
@@ -226,16 +299,26 @@ export function CalendarTimeGrid({
                   const widthPct = 100 / layout.totalColumns;
                   const leftPct = layout.column * widthPct;
                   return (
-                    <button
+                    <Card
                       key={`${layout.event.id}-${key}`}
-                      type="button"
+                      size="sm"
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => {
                         e.stopPropagation();
                         onEventClick(layout.event);
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onEventClick(layout.event);
+                        }
+                      }}
                       className={cn(
-                        "absolute z-10 overflow-hidden rounded-[0.35rem] border border-primary/35",
-                        "bg-primary/20 px-1.5 py-1 text-left hover:bg-primary/30",
+                        "absolute z-10 cursor-pointer overflow-hidden rounded-[0.35rem]",
+                        "bg-primary/20 py-1 ring-primary/35 hover:bg-primary/30",
+                        "[--card-spacing:--spacing(1.5)]",
                       )}
                       style={{
                         top: layout.top,
@@ -244,19 +327,19 @@ export function CalendarTimeGrid({
                         width: `calc(${widthPct}% - 4px)`,
                       }}
                     >
-                      <p className="truncate text-[0.7rem] leading-tight font-semibold text-foreground">
+                      <CardTitle className="truncate px-1.5 text-[0.7rem] leading-tight font-semibold">
                         {layout.event.title}
-                      </p>
+                      </CardTitle>
                       {layout.height >= 36 ? (
-                        <p className="truncate text-[0.65rem] text-muted-foreground">
+                        <CardDescription className="truncate px-1.5 text-[0.65rem]">
                           {formatEventTimeShort(
                             layout.event.start,
                             layout.event.end,
                             layout.event.allDay,
                           )}
-                        </p>
+                        </CardDescription>
                       ) : null}
-                    </button>
+                    </Card>
                   );
                 })}
               </div>
@@ -293,7 +376,7 @@ export function CalendarTimeGrid({
             </div>
           ) : null}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
