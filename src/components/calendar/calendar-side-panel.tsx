@@ -112,7 +112,7 @@ export function CalendarSidePanel({
             )}
           </section>
 
-          <section className="flex flex-col gap-3">
+          {/* <section className="flex flex-col gap-3">
             <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Calendars
             </h2>
@@ -127,7 +127,7 @@ export function CalendarSidePanel({
                 </Label>
               </CardContent>
             </Card>
-          </section>
+          </section> */}
         </div>
       </ScrollArea>
     </aside>
