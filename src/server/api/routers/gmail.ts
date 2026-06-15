@@ -303,4 +303,24 @@ export const gmailRouter = createTRPCRouter({
         wrapError(err, "markRead");
       }
     }),
+
+  refreshWatch: protectedProcedure.mutation(async ({ ctx }) => {
+    const { setupGmailWatch } = await import("@/server/gmail/watch");
+    try {
+      const result = await setupGmailWatch(ctx.session.user.id);
+      if (!result) {
+        return {
+          success: false as const,
+          message: "GMAIL_PUBSUB_TOPIC is not configured.",
+        };
+      }
+      return {
+        success: true as const,
+        expiration: result.expiration,
+        historyId: result.historyId,
+      };
+    } catch (err) {
+      wrapError(err, "refreshWatch");
+    }
+  }),
 });

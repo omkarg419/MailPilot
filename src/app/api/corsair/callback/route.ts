@@ -3,6 +3,7 @@ import { processOAuthCallback } from "corsair/oauth";
 
 import { corsair } from "@/server/corsair";
 import { setupGmailWatch } from "@/server/gmail/watch";
+import { setupCalendarWatch } from "@/server/calendar/watch";
 
 const REDIRECT_URI = `${process.env.APP_URL}/api/corsair/callback`;
 
@@ -31,6 +32,17 @@ export async function GET(request: NextRequest) {
       } catch (watchError) {
         console.error(
           `[gmail:watch] Auto-setup failed for tenant ${result.tenantId}:`,
+          watchError,
+        );
+      }
+    }
+
+    if (result.plugin === "googlecalendar") {
+      try {
+        await setupCalendarWatch(result.tenantId);
+      } catch (watchError) {
+        console.error(
+          `[calendar:watch] Auto-setup failed for tenant ${result.tenantId}:`,
           watchError,
         );
       }

@@ -2,7 +2,8 @@ import "server-only";
 
 export type MailRealtimeEvent =
   | { type: "connected" }
-  | { type: "inbox_changed"; plugin: "gmail" };
+  | { type: "inbox_changed"; plugin: "gmail" }
+  | { type: "calendar_changed"; plugin: "googlecalendar" };
 
 type MailRealtimeListener = (event: MailRealtimeEvent) => void;
 
@@ -48,17 +49,33 @@ export function encodeMailSseEvent(event: MailRealtimeEvent): string {
 }
 
 export function notifyMailInboxChanged(tenantId: string): void {
-  notifyMailInboxChangedForTenants([tenantId]);
+  notifyRealtimeForTenants([tenantId], {
+    type: "inbox_changed",
+    plugin: "gmail",
+  });
+}
+
+export function notifyCalendarChangedForTenants(tenantIds: string[]): void {
+  notifyRealtimeForTenants(tenantIds, {
+    type: "calendar_changed",
+    plugin: "googlecalendar",
+  });
 }
 
 export function notifyMailInboxChangedForTenants(tenantIds: string[]): void {
-  const registry = getListenerRegistry();
-  const event: MailRealtimeEvent = {
+  notifyRealtimeForTenants(tenantIds, {
     type: "inbox_changed",
     plugin: "gmail",
-  };
+  });
+}
 
+function notifyRealtimeForTenants(
+  tenantIds: string[],
+  event: MailRealtimeEvent,
+): void {
+  const registry = getListenerRegistry();
   let delivered = 0;
+
   for (const tenantId of tenantIds) {
     const listeners = registry.get(tenantId);
     if (!listeners?.size) continue;
@@ -71,9 +88,9 @@ export function notifyMailInboxChangedForTenants(tenantIds: string[]): void {
   if (delivered === 0) {
     const active = mailRealtimeActiveTenantIds();
     console.warn(
-      `[mail:realtime] No SSE listeners for webhook tenant(s) [${tenantIds.join(", ")}]. ` +
-        `Active SSE tenant(s): [${active.join(", ") || "none"}]. ` +
-        `Usually a sign-in / Gmail-connect mismatch — reconnect Gmail at /api/corsair/connect?plugin=gmail while signed in.`,
+      `[mail:realtime] No SSE listeners for webhook tenant(s) [${tenantIds.join(", ")}] ` +
+        `(event: ${event.type}). Active SSE tenant(s): [${active.join(", ") || "none"}]. ` +
+        `Usually a sign-in / connect mismatch — reconnect at /api/corsair/connect?plugin=... while signed in.`,
     );
   }
 }

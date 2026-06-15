@@ -8,7 +8,7 @@ import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadView } from "@/components/mail/thread-view";
 import type { MailboxLabel } from "@/components/mail/types";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { useMailRealtimeInbox } from "@/hooks/use-mail-realtime";
+import { useMailRealtimeInbox, useInboxNewCount } from "@/hooks/use-mail-realtime";
 import { api } from "@/trpc/react";
 import { ComposeModal, type ComposeInitial } from "./compose-modal";
 
@@ -36,6 +36,7 @@ export function MailClient({
   }, [utils]);
 
   useMailRealtimeInbox(refreshLive);
+  const inboxNewCount = useInboxNewCount(label === "INBOX");
 
   // Debounce the search box → Gmail `q`.
   useEffect(() => {
@@ -132,6 +133,7 @@ export function MailClient({
         userEmail={userEmail}
         userName={userName}
         userImage={userImage}
+        inboxNewCount={inboxNewCount}
       />
 
       <div className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">

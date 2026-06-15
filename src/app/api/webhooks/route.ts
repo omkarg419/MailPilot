@@ -3,7 +3,10 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { corsair } from "@/server/corsair";
-import { notifyMailInboxChangedForTenants } from "@/server/realtime/mail-events";
+import {
+  notifyCalendarChangedForTenants,
+  notifyMailInboxChangedForTenants,
+} from "@/server/realtime/mail-events";
 import {
   resolveWebhookNotifyTenantIds,
   resolveWebhookTenantId,
@@ -26,7 +29,7 @@ export async function POST(request: NextRequest) {
     body = text && text.trim() ? text : {};
   }
 
-  const tenantId = await resolveWebhookTenantId(body);
+  const tenantId = await resolveWebhookTenantId(body, headers);
   if (!tenantId) {
     console.warn("[webhooks] Could not resolve tenant from payload");
     return NextResponse.json(
@@ -51,6 +54,8 @@ export async function POST(request: NextRequest) {
   if (result.plugin === "gmail") {
     const notifyTenantIds = await resolveWebhookNotifyTenantIds(body);
     notifyMailInboxChangedForTenants(notifyTenantIds);
+  } else if (result.plugin === "googlecalendar") {
+    notifyCalendarChangedForTenants([tenantId]);
   }
 
   const responseHeaders = result.responseHeaders;

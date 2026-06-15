@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -19,6 +20,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { initials } from "@/components/mail/mail-utils";
+import { ProfileGmailWatchButton } from "@/components/profile/profile-gmail-watch-button";
 
 type ProfileViewProps = {
   userName: string;
@@ -34,12 +36,14 @@ function ConnectionRow({
   description,
   connected,
   connectHref,
+  connectedAction,
 }: {
   icon: typeof InboxIcon;
   title: string;
   description: string;
   connected: boolean;
   connectHref: string;
+  connectedAction?: ReactNode;
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
@@ -70,7 +74,9 @@ function ConnectionRow({
           >
             Connect
           </Link>
-        ) : null}
+        ) : (
+          connectedAction
+        )}
       </div>
     </div>
   );
@@ -136,6 +142,7 @@ export function ProfileView({
                 description="Read, search, and send mail through MailPilot."
                 connected={gmailConnected}
                 connectHref="/api/corsair/connect?plugin=gmail"
+                connectedAction={<ProfileGmailWatchButton />}
               />
               <ConnectionRow
                 icon={Calendar03Icon}

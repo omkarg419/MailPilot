@@ -1,5 +1,6 @@
 import "server-only";
 
+import { resolveTenantIdFromCalendarChannel } from "@/server/calendar/watch";
 import {
   resolveGmailNotifyTenantIds,
   resolveTenantIdFromGmailWebhook,
@@ -7,8 +8,14 @@ import {
 
 export async function resolveWebhookTenantId(
   body: string | Record<string, unknown>,
+  headers?: Record<string, string>,
 ): Promise<string | null> {
-  return resolveTenantIdFromGmailWebhook(body);
+  const fromGmail = await resolveTenantIdFromGmailWebhook(body);
+  if (fromGmail) return fromGmail;
+
+  const channelId =
+    headers?.["x-goog-channel-id"] ?? headers?.["X-Goog-Channel-Id"];
+  return resolveTenantIdFromCalendarChannel(channelId);
 }
 
 export async function resolveWebhookNotifyTenantIds(

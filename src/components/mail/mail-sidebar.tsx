@@ -23,6 +23,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -48,6 +49,7 @@ type MailSidebarProps = {
   userEmail: string;
   userName: string;
   userImage: string;
+  inboxNewCount?: number;
 };
 
 export function MailSidebar({
@@ -58,6 +60,7 @@ export function MailSidebar({
   userEmail,
   userName,
   userImage,
+  inboxNewCount = 0,
 }: MailSidebarProps) {
   const isAgent = activeWorkspace === "agent";
   const isCalendar = activeWorkspace === "calendar";
@@ -93,6 +96,9 @@ export function MailSidebar({
                   <SidebarMenuButton render={<Link href="/mail" />}>
                     <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
                     Inbox
+                    {inboxNewCount > 0 ? (
+                      <SidebarMenuBadge>{inboxNewCount}</SidebarMenuBadge>
+                    ) : null}
                   </SidebarMenuButton>
                 ) : (
                   <SidebarMenuButton
@@ -101,6 +107,9 @@ export function MailSidebar({
                   >
                     <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
                     Inbox
+                    {inboxNewCount > 0 && activeLabel !== "INBOX" ? (
+                      <SidebarMenuBadge>{inboxNewCount}</SidebarMenuBadge>
+                    ) : null}
                   </SidebarMenuButton>
                 )}
               </SidebarMenuItem>

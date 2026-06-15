@@ -4,6 +4,7 @@ import { type Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { TRPCReactProvider } from "@/trpc/react";
+import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 const geistMono = Geist_Mono({subsets:['latin'],variable:'--font-mono'});
@@ -29,6 +30,7 @@ export default function RootLayout({
     >
       <body className="bg-background text-foreground">
         <TRPCReactProvider>{children}</TRPCReactProvider>
+        <Toaster theme="dark" position="bottom-right" richColors closeButton />
       </body>
     </html>
   );
