@@ -1,5 +1,5 @@
 import { LandingAgentShowcase } from "@/components/landing/landing-agent-showcase";
-import { LandingArchitecture } from "@/components/landing/landing-architecture";
+
 import { LandingCta } from "@/components/landing/landing-cta";
 import { LandingFeatures } from "@/components/landing/landing-features";
 import { LandingFooter } from "@/components/landing/landing-footer";
@@ -19,7 +19,6 @@ export function LandingPage() {
       <LandingWorkspace />
       <LandingWorkflow />
       <LandingFeatures />
-      <LandingArchitecture />
       <LandingCta />
       <LandingFooter />
     </div>
