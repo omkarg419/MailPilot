@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -61,6 +62,13 @@ function parseRecipients(raw: string): string[] {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const composeKbdClass =
+  "rounded-[0.4rem] border px-1.5 py-0.5 text-[10px] font-medium tracking-wide";
+
+const composeKbdMutedClass = `${composeKbdClass} border-border bg-muted/60 text-muted-foreground`;
+
+const composeKbdOnPrimaryClass = `${composeKbdClass} border-primary-foreground/25 bg-primary-foreground/10 text-primary-foreground/90`;
 
 const COMPOSE_EMOJIS = [
   "😀", "😊", "😂", "🙂", "😉", "🙏", "👍", "👎",
@@ -313,7 +321,7 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
     return true;
   };
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!initial || !validate()) return;
     sendEmail.mutate({
       to: recipients,
@@ -321,7 +329,7 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
       body,
       threadId: initial.threadId,
     });
-  };
+  }, [initial, recipients, invalid, subject, body, sendEmail]);
 
   const handleDraft = () => {
     if (!initial || !validate()) return;
@@ -332,6 +340,25 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
       threadId: initial.threadId,
     });
   };
+
+  useEffect(() => {
+    if (!initial) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "s"
+      ) {
+        event.preventDefault();
+        if (!sendEmail.isPending && !createDraft.isPending) {
+          handleSend();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [initial, handleSend, sendEmail.isPending, createDraft.isPending]);
 
   return (
     <Dialog
@@ -355,16 +382,8 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
               {isReply ? "Reply" : "New message"}
             </DialogTitle>
           </div>
-          <div className="flex items-center gap-0.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground"
-              aria-label="Minimize"
-            >
-              
-            </Button>
+          <div className="flex items-center gap-2">
+            <kbd className={composeKbdMutedClass}>Esc</kbd>
             <DialogClose
               render={
                 <Button
@@ -372,11 +391,11 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
                   variant="ghost"
                   size="icon-sm"
                   className="text-muted-foreground"
+                  aria-label="Close compose"
                 />
               }
             >
               <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-              <span className="sr-only">Close</span>
             </DialogClose>
           </div>
         </div>
@@ -426,9 +445,11 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
             variant="default"
             onClick={handleSend}
             disabled={pending}
+            className="gap-2"
           >
             <HugeiconsIcon icon={MailSend01Icon} strokeWidth={2} />
             {sendEmail.isPending ? "Sending…" : "Send"}
+            <kbd className={composeKbdOnPrimaryClass}>⌘ S</kbd>
           </Button>
         </DialogFooter>
       </DialogContent>
