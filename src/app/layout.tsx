@@ -12,7 +12,6 @@ const geistMono = Geist_Mono({subsets:['latin'],variable:'--font-mono'});
 export const metadata: Metadata = {
   title: "MailPilot",
   description: "AI-native Gmail and Calendar platform",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
 const geist = Geist({
