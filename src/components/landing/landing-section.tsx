@@ -8,6 +8,8 @@ type LandingSectionProps = {
   className?: string;
   children: React.ReactNode;
   containerClassName?: string;
+  /** Skip scroll fade/slide — use on sections with height-sensitive animations */
+  disableReveal?: boolean;
 };
 
 export function LandingSection({
@@ -15,6 +17,7 @@ export function LandingSection({
   className,
   children,
   containerClassName,
+  disableReveal = false,
 }: LandingSectionProps) {
   const { ref, inView } = useInView<HTMLElement>();
 
@@ -23,8 +26,11 @@ export function LandingSection({
       id={id}
       ref={ref}
       className={cn(
-        "border-b border-border py-24 transition-all duration-700 ease-out",
-        inView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0",
+        "border-b border-border py-24",
+        !disableReveal &&
+          "transition-all duration-700 ease-out",
+        !disableReveal &&
+          (inView ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"),
         className,
       )}
     >

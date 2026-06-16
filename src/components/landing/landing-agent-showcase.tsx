@@ -31,15 +31,19 @@ const STEPS = [
   "Drafted confirmation email",
 ] as const;
 
+const DEMO_COMPOSE_BODY =
+  "Hi Rahul,\n\nLooking forward to lunch next Tuesday at 12:30. Let me know if that still works for you.\n\nBest,\nOmkar";
+
+/** Fixed stage height — must not use min-h (content can grow and push sections below). */
+const DEMO_STAGE_H = "h-[36.5rem] sm:h-[38rem]";
+
 function DemoCalendarCard({ visible }: { visible: boolean }) {
   return (
     <Card
       size="sm"
       className={cn(
-        "transition-all duration-500",
-        visible
-          ? "translate-y-0 opacity-100"
-          : "translate-y-4 opacity-0",
+        "h-full transition-opacity duration-500",
+        visible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
     >
       <CardHeader className="border-b border-border pb-3">
@@ -73,28 +77,26 @@ function DemoComposeCard({ visible, body }: { visible: boolean; body: string }) 
     <Card
       size="sm"
       className={cn(
-        "transition-all duration-500 delay-150",
-        visible
-          ? "translate-y-0 opacity-100"
-          : "translate-y-4 opacity-0",
+        "flex h-full flex-col transition-opacity duration-500",
+        visible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
     >
-      <CardHeader className="border-b border-border pb-3">
+      <CardHeader className="shrink-0 border-b border-border pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
           <HugeiconsIcon icon={MailSend01Icon} strokeWidth={2} className="size-4" />
           Confirmation email
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 pt-3 text-sm">
-        <p className="text-muted-foreground">
+      <CardContent className="min-h-0 flex-1 space-y-2 overflow-hidden pt-3 text-sm">
+        <p className="shrink-0 text-muted-foreground">
           <span className="text-foreground">To:</span> rahul@example.com
         </p>
-        <p className="text-muted-foreground">
+        <p className="shrink-0 text-muted-foreground">
           <span className="text-foreground">Subject:</span> Lunch next week
         </p>
-        <p className="min-h-[4rem] whitespace-pre-wrap leading-relaxed text-foreground">
+        <p className="min-h-0 flex-1 overflow-hidden whitespace-pre-wrap leading-relaxed text-foreground">
           {body}
-          {visible && body.length < 120 ? (
+          {visible && body.length < DEMO_COMPOSE_BODY.length ? (
             <span className="landing-cursor ml-px inline-block h-[1em] w-px bg-foreground" />
           ) : null}
         </p>
@@ -103,22 +105,14 @@ function DemoComposeCard({ visible, body }: { visible: boolean; body: string }) 
   );
 }
 
-const DEMO_COMPOSE_BODY =
-  "Hi Rahul,\n\nLooking forward to lunch next Tuesday at 12:30. Let me know if that still works for you.\n\nBest,\nOmkar";
-
 export function LandingAgentShowcase() {
-  const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.25 });
+  const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.15 });
   const [phase, setPhase] = useState<DemoPhase>("idle");
   const [composeBody, setComposeBody] = useState("");
   const [visibleSteps, setVisibleSteps] = useState(0);
 
   useEffect(() => {
-    if (!inView) {
-      setPhase("idle");
-      setComposeBody("");
-      setVisibleSteps(0);
-      return;
-    }
+    if (!inView) return;
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     const schedule = (fn: () => void, ms: number) => {
@@ -131,6 +125,7 @@ export function LandingAgentShowcase() {
       setVisibleSteps(0);
 
       schedule(() => setPhase("user"), 400);
+
       schedule(() => {
         setPhase("step1");
         setVisibleSteps(1);
@@ -163,8 +158,16 @@ export function LandingAgentShowcase() {
     return () => timers.forEach(clearTimeout);
   }, [inView]);
 
+  const showUser = phase !== "idle";
+  const showCalendar = phase === "calendar" || phase === "compose";
+  const showCompose = phase === "compose";
+
   return (
-    <LandingSection id="agent-showcase" className="bg-background">
+    <LandingSection
+      id="agent-showcase"
+      className="bg-background"
+      disableReveal
+    >
       <div ref={ref} className="text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           AI Agent
@@ -178,47 +181,54 @@ export function LandingAgentShowcase() {
         </p>
       </div>
 
-      <div className="mx-auto mt-14 max-w-2xl rounded-[1rem] border border-border bg-card p-4 shadow-xl shadow-black/15 sm:p-6">
-        <div
-          className={cn(
-            "flex justify-end transition-all duration-400",
-            phase === "idle" ? "opacity-0" : "opacity-100",
-          )}
-        >
-          <div className="max-w-[85%] rounded-[1.2rem] bg-primary px-4 py-2.5 text-[15px] text-primary-foreground">
-            Schedule lunch with Rahul next week
-          </div>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          {STEPS.map((step, index) => (
+      <div
+        className={cn(
+          "mx-auto mt-14 max-w-2xl overflow-hidden rounded-[1rem] border border-border bg-card p-4 shadow-xl shadow-black/15 sm:p-6",
+          DEMO_STAGE_H,
+        )}
+      >
+        <div className="flex h-full flex-col gap-6">
+          {/* Row 1: user bubble — fixed height */}
+          <div className="flex h-12 shrink-0 items-start justify-end">
             <div
-              key={step}
               className={cn(
-                "flex items-center gap-2 text-sm transition-all duration-400",
-                visibleSteps > index
-                  ? "translate-x-0 opacity-100"
-                  : "-translate-x-2 opacity-0",
+                "max-w-[85%] rounded-[1.2rem] bg-primary px-4 py-2.5 text-[15px] text-primary-foreground transition-opacity duration-400",
+                showUser ? "opacity-100" : "opacity-0",
               )}
             >
-              <HugeiconsIcon
-                icon={CheckmarkCircle02Icon}
-                strokeWidth={2}
-                className="size-4 text-primary"
-              />
-              <span className="text-foreground">{step}</span>
+              Schedule lunch with Rahul next week
             </div>
-          ))}
-        </div>
+          </div>
 
-        <div className="mt-6 space-y-4">
-          <DemoCalendarCard
-            visible={phase === "calendar" || phase === "compose"}
-          />
-          <DemoComposeCard
-            visible={phase === "compose"}
-            body={composeBody}
-          />
+          {/* Row 2: steps — fixed height, always 3 lines reserved */}
+          <div className="flex h-[5.5rem] shrink-0 flex-col justify-center gap-3">
+            {STEPS.map((step, index) => (
+              <div
+                key={step}
+                className={cn(
+                  "flex h-5 items-center gap-2 text-sm transition-opacity duration-400",
+                  visibleSteps > index ? "opacity-100" : "opacity-0",
+                )}
+              >
+                <HugeiconsIcon
+                  icon={CheckmarkCircle02Icon}
+                  strokeWidth={2}
+                  className="size-4 shrink-0 text-primary"
+                />
+                <span className="text-foreground">{step}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Row 3: cards — flex-1, two equal rows always reserved */}
+          <div className="grid min-h-0 flex-1 grid-rows-2 gap-4 overflow-hidden">
+            <div className="min-h-0 overflow-hidden">
+              <DemoCalendarCard visible={showCalendar} />
+            </div>
+            <div className="min-h-0 overflow-hidden">
+              <DemoComposeCard visible={showCompose} body={composeBody} />
+            </div>
+          </div>
         </div>
       </div>
     </LandingSection>
