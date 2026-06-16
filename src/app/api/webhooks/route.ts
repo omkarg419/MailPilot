@@ -66,7 +66,9 @@ export async function POST(request: NextRequest) {
 
   if (result.plugin === "gmail") {
     const notifyTenantIds = await resolveWebhookNotifyTenantIds(body);
-    notifyMailInboxChangedForTenants(notifyTenantIds);
+    notifyMailInboxChangedForTenants([
+      ...new Set([tenantId, ...notifyTenantIds]),
+    ]);
   } else if (result.plugin === "googlecalendar") {
     const resourceState =
       headers["x-goog-resource-state"] ?? headers["X-Goog-Resource-State"];

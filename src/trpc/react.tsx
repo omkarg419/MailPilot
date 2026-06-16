@@ -47,11 +47,19 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
         loggerLink({
           enabled: (op) => {
             if (op.direction === "down" && op.result instanceof Error) {
-              if (
-                op.result instanceof TRPCClientError &&
-                op.result.data?.code === "CONFLICT"
-              ) {
+              // Background inbox sync uses utils.fetch; avoid noisy console errors.
+              if (op.path === "gmail.listThreads") {
                 return false;
+              }
+              if (op.result instanceof TRPCClientError) {
+                const code = op.result.data?.code;
+                if (
+                  code === "CONFLICT" ||
+                  code === "PRECONDITION_FAILED" ||
+                  code === "UNAUTHORIZED"
+                ) {
+                  return false;
+                }
               }
               return (
                 process.env.NODE_ENV === "development" ||

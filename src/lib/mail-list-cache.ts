@@ -1,9 +1,17 @@
 import type { MailboxLabel } from "@/components/mail/types";
 import type { api } from "@/trpc/react";
+import type { RouterOutputs } from "@/trpc/react";
 
 type ListThreadsUtils = ReturnType<typeof api.useUtils>["gmail"]["listThreads"];
+type ListThreadsResult = RouterOutputs["gmail"]["listThreads"];
 
-/** TanStack Query cache key — `refresh` is intentionally omitted (see fetchAndSyncListThreads). */
+const EMPTY_LIST: ListThreadsResult = {
+  threads: [],
+  nextPageToken: undefined,
+  cached: false,
+};
+
+/** TanStack Query cache key — must match `useQuery` input (omit `refresh`). */
 export type ListThreadsQueryInput = {
   label: MailboxLabel;
   q?: string;
@@ -15,56 +23,47 @@ export function getListThreadsQueryInput(
 ): ListThreadsQueryInput {
   return {
     label,
-    q: q || undefined,
+    q: q?.trim() || undefined,
   };
 }
 
 /**
- * Pull from Gmail API (`refresh: true`) and write into the single visible cache entry
- * so background sync never races a separate `refresh: false` query.
+ * Pull from Gmail API (`refresh: true`) and write into the visible cache entry.
+ * Failures are swallowed so background inbox sync never spams the console.
  */
 export async function fetchAndSyncListThreads(
   listThreads: ListThreadsUtils,
   label: MailboxLabel,
   q?: string,
-) {
+): Promise<ListThreadsResult> {
   const cacheInput = getListThreadsQueryInput(label, q);
-  const fresh = await listThreads.fetch({
-    ...cacheInput,
-    refresh: true,
-  });
-  listThreads.setData(cacheInput, (old) => {
-    if (!old?.threads.length) return fresh;
+  const cached = listThreads.getData(cacheInput);
 
-    const prevIds = new Set(old.threads.map((t) => t.threadId));
-    const newThreads = fresh.threads.filter((t) => !prevIds.has(t.threadId));
-
-    // Nothing new — keep stable row references when order is unchanged.
-    if (newThreads.length === 0) {
-      const sameOrder =
-        old.threads.length === fresh.threads.length &&
-        old.threads.every(
-          (t, i) => t.threadId === fresh.threads[i]?.threadId,
-        );
-      if (sameOrder) {
-        return {
-          ...old,
-          threads: old.threads.map((t, i) => {
-            const next = fresh.threads[i]!;
-            if (
-              t.unread === next.unread &&
-              t.snippet === next.snippet &&
-              t.subject === next.subject
-            ) {
-              return t;
-            }
-            return next;
-          }),
-        };
-      }
-    }
-
+  try {
+    const fresh = await listThreads.fetch({
+      ...cacheInput,
+      refresh: true,
+    });
+    listThreads.setData(cacheInput, fresh);
     return fresh;
-  });
-  return listThreads.getData(cacheInput) ?? fresh;
+  } catch {
+    return cached ?? EMPTY_LIST;
+  }
+}
+
+/** After send/draft, refresh Sent + Inbox (and the active label) without a full reload. */
+export async function syncListsAfterSend(
+  listThreads: ListThreadsUtils,
+  currentLabel: MailboxLabel,
+  currentQuery?: string,
+) {
+  await fetchAndSyncListThreads(listThreads, currentLabel, currentQuery);
+
+  const extras: MailboxLabel[] = [];
+  if (currentLabel !== "SENT") extras.push("SENT");
+  if (currentLabel !== "INBOX" || currentQuery) extras.push("INBOX");
+
+  await Promise.all(
+    extras.map((l) => fetchAndSyncListThreads(listThreads, l)),
+  );
 }

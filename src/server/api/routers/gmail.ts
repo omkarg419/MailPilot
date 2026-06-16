@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { MessagePart } from "@corsair-dev/gmail";
 
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { corsair } from "@/server/corsair";
+import { corsair, getConnectionFlags } from "@/server/corsair";
 import {
   buildRawMessage,
   getHeader,
@@ -127,6 +127,11 @@ export const gmailRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const connections = await getConnectionFlags(ctx.session.user.id);
+      if (!connections.gmail) {
+        return { threads: [], nextPageToken: undefined, cached: false };
+      }
+
       const gmail = gmailFor(ctx.session.user.id);
 
       // Fast path: serve from the Corsair entity cache when we aren't searching
@@ -205,7 +210,7 @@ export const gmailRouter = createTRPCRouter({
         const threads = list.threads ?? [];
         // NOTE: Corsair's `format: "metadata"` returns an empty headers array,
         // so we must request "full" to get From/Subject/Date headers.
-        const detailed = await Promise.all(
+        const detailed = await Promise.allSettled(
           threads.map((t) =>
             t.id
               ? gmail.api.threads.get({ id: t.id, format: "full" })
@@ -214,7 +219,10 @@ export const gmailRouter = createTRPCRouter({
         );
 
         const summaries = detailed
-          .map((thread) => (thread ? summarizeApiThread(thread) : null))
+          .map((result) => {
+            if (result.status !== "fulfilled" || !result.value) return null;
+            return summarizeApiThread(result.value);
+          })
           .filter((s): s is ThreadSummary => s !== null);
 
         return {
@@ -223,6 +231,14 @@ export const gmailRouter = createTRPCRouter({
           cached: false,
         };
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (
+          /401|403|404|invalid_grant|AuthMissing|not connected|Not Found/i.test(
+            message,
+          )
+        ) {
+          return { threads: [], nextPageToken: undefined, cached: false };
+        }
         wrapError(err, "listThreads");
       }
     }),

@@ -63,19 +63,24 @@ export function notifyCalendarChangedForTenants(tenantIds: string[]): void {
 }
 
 export function notifyMailInboxChangedForTenants(tenantIds: string[]): void {
-  notifyRealtimeForTenants(tenantIds, {
-    type: "inbox_changed",
-    plugin: "gmail",
-  });
+  notifyRealtimeForTenants(
+    tenantIds,
+    {
+      type: "inbox_changed",
+      plugin: "gmail",
+    },
+    { fanOutActiveOnMiss: true },
+  );
 }
 
 function notifyRealtimeForTenants(
   tenantIds: string[],
   event: MailRealtimeEvent,
+  options?: { fanOutActiveOnMiss?: boolean },
 ): void {
   const registry = getListenerRegistry();
   let delivered = 0;
-  const uniqueTenantIds = [...new Set(tenantIds)];
+  const uniqueTenantIds = [...new Set(tenantIds.filter(Boolean))];
 
   for (const tenantId of uniqueTenantIds) {
     const listeners = registry.get(tenantId);
@@ -86,16 +91,34 @@ function notifyRealtimeForTenants(
     }
   }
 
-  if (delivered === 0) {
-    const active = mailRealtimeActiveTenantIds();
-    console.warn(
-      `[mail:realtime] No SSE listeners for webhook tenant(s) [${tenantIds.join(
-        ", ",
-      )}] ` +
-        `(event: ${event.type}). Active SSE tenant(s): [${
-          active.join(", ") || "none"
-        }]. ` +
-        `Usually a sign-in / connect mismatch — reconnect at /api/corsair/connect?plugin=... while signed in.`,
-    );
+  if (delivered > 0) return;
+
+  const active = mailRealtimeActiveTenantIds();
+  if (options?.fanOutActiveOnMiss && active.length > 0) {
+    for (const tenantId of active) {
+      const listeners = registry.get(tenantId);
+      if (!listeners?.size) continue;
+      delivered += listeners.size;
+      for (const listener of listeners) {
+        listener(event);
+      }
+    }
+    if (delivered > 0) {
+      console.info(
+        `[mail:realtime] Webhook tenant(s) [${uniqueTenantIds.join(", ") || "none"}] had no SSE listeners; ` +
+          `fanned out ${event.type} to active session(s) [${active.join(", ")}].`,
+      );
+      return;
+    }
   }
+
+  console.warn(
+    `[mail:realtime] No SSE listeners for webhook tenant(s) [${uniqueTenantIds.join(
+      ", ",
+    )}] ` +
+      `(event: ${event.type}). Active SSE tenant(s): [${
+        active.join(", ") || "none"
+      }]. ` +
+      `Sign in with the Gmail account that receives webhooks, then reconnect at /api/corsair/connect?plugin=gmail.`,
+  );
 }

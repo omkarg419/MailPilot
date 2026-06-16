@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/** One delayed refresh after a webhook burst (Gmail can lag behind push). */
-const INBOX_REFRESH_DELAYS_MS = [1_500] as const;
+/** Staggered refreshes — Gmail indexing can lag several seconds behind push. */
+const INBOX_REFRESH_DELAYS_MS = [0, 2_000, 5_000, 10_000] as const;
+const INBOX_POLL_INTERVAL_MS = 30_000;
 const CALENDAR_REFRESH_DELAYS_MS = [0, 2_000] as const;
 
 const MAIL_INBOX_TOAST_ID = "mail-inbox-sync";
@@ -156,7 +157,15 @@ function releaseSharedConnection() {
 export function useMailRealtimeConnection() {
   useEffect(() => {
     acquireSharedConnection();
-    return () => releaseSharedConnection();
+
+    const poll = window.setInterval(() => {
+      window.dispatchEvent(new Event(MAIL_INBOX_CHANGED_EVENT));
+    }, INBOX_POLL_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(poll);
+      releaseSharedConnection();
+    };
   }, []);
 }
 

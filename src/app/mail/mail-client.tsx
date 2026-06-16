@@ -53,11 +53,12 @@ export function MailClient({
 
   const refreshLive = useCallback(() => {
     void syncCurrentList();
+    void utils.gmail.listThreads.invalidate(listThreadsInput);
     // Keep INBOX cache warm even when viewing Sent/Draft/Trash.
     if (label !== "INBOX" || query) {
       void fetchAndSyncListThreads(utils.gmail.listThreads, "INBOX");
     }
-  }, [syncCurrentList, label, query, utils]);
+  }, [syncCurrentList, listThreadsInput, label, query, utils]);
 
   useMailRealtimeInbox(refreshLive);
   const inboxNewCount = useInboxNewCount(
@@ -74,6 +75,8 @@ export function MailClient({
   const threadsQuery = api.gmail.listThreads.useQuery(listThreadsInput, {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    structuralSharing: false,
+    retry: 1,
   });
 
   const threadQuery = api.gmail.getThread.useQuery(

@@ -1,7 +1,7 @@
 import { type Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { AgentClient } from "@/app/agent/agent-client";
+import { AgentClientLoader } from "@/app/agent/agent-client-loader";
 import { auth } from "@/server/auth";
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export default async function AgentPage() {
   }
 
   return (
-    <AgentClient
+    <AgentClientLoader
       userEmail={session.user.email ?? ""}
       userName={session.user.name ?? ""}
       userImage={session.user.image ?? ""}
