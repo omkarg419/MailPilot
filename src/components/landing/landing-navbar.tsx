@@ -17,8 +17,14 @@ export function LandingNavbar() {
         <Link
           href="/signin"
           className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "rounded-[0.5rem] px-4",
+            buttonVariants({ variant: "default", size: "sm" }),
+            "h-9 rounded-[0.65rem] border border-primary/35 px-5 text-sm font-medium",
+            "bg-primary text-primary-foreground",
+            "shadow-[0_0_18px_color-mix(in_oklch,var(--primary)_38%,transparent)]",
+            "transition-all duration-200",
+            "hover:border-primary/50 hover:brightness-110",
+            "hover:shadow-[0_0_26px_color-mix(in_oklch,var(--primary)_52%,transparent)]",
+            "active:scale-[0.98]",
           )}
         >
           Sign In
