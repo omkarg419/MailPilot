@@ -35,6 +35,7 @@ export function ProfileGmailWatchButton() {
     <ProfileWatchRefreshButton
       isPending={refreshWatch.isPending}
       onClick={() => refreshWatch.mutate()}
+      hint="Use if new mail stops updating automatically"
       message={message}
     />
   );

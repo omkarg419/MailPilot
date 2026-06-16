@@ -35,6 +35,7 @@ export function ProfileCalendarWatchButton() {
     <ProfileWatchRefreshButton
       isPending={refreshWatch.isPending}
       onClick={() => refreshWatch.mutate()}
+      hint="Use if calendar stops updating automatically"
       message={message}
     />
   );
