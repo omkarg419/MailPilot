@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { initials } from "@/components/mail/mail-utils";
 import { ProfileGmailWatchButton } from "@/components/profile/profile-gmail-watch-button";
+import { ProfileCalendarWatchButton } from "@/components/profile/profile-calendar-watch-button";
 
 type ProfileViewProps = {
   userName: string;
@@ -150,6 +151,7 @@ export function ProfileView({
                 description="View and manage calendar events."
                 connected={calendarConnected}
                 connectHref="/api/corsair/connect?plugin=googlecalendar"
+                connectedAction={<ProfileCalendarWatchButton />}
               />
             </div>
 

@@ -203,4 +203,24 @@ export const calendarRouter = createTRPCRouter({
         wrapError(err, "deleteEvent");
       }
     }),
+
+  refreshWatch: protectedProcedure.mutation(async ({ ctx }) => {
+    const { setupCalendarWatch } = await import("@/server/calendar/watch");
+    try {
+      const result = await setupCalendarWatch(ctx.session.user.id);
+      if (!result) {
+        return {
+          success: false as const,
+          message: "APP_URL is not configured.",
+        };
+      }
+      return {
+        success: true as const,
+        expiration: result.expiration,
+        channelId: result.channelId,
+      };
+    } catch (err) {
+      wrapError(err, "refreshWatch");
+    }
+  }),
 });

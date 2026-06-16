@@ -6,28 +6,28 @@ import { toast } from "sonner";
 import { ProfileWatchRefreshButton } from "@/components/profile/profile-watch-refresh-button";
 import { api } from "@/trpc/react";
 
-export function ProfileGmailWatchButton() {
+export function ProfileCalendarWatchButton() {
   const [message, setMessage] = useState<string | null>(null);
-  const refreshWatch = api.gmail.refreshWatch.useMutation({
+  const refreshWatch = api.calendar.refreshWatch.useMutation({
     onSuccess: (data) => {
       if (data.success) {
         const expires = data.expiration
           ? new Date(Number(data.expiration)).toLocaleString()
           : "unknown";
-        setMessage(`Gmail watch renewed (expires ${expires})`);
-        toast.success("Gmail watch refreshed", {
+        setMessage(`Calendar watch renewed (expires ${expires})`);
+        toast.success("Calendar watch refreshed", {
           description: `Push notifications active until ${expires}`,
         });
       } else {
         setMessage(data.message);
-        toast.error("Could not refresh Gmail watch", {
+        toast.error("Could not refresh Calendar watch", {
           description: data.message,
         });
       }
     },
     onError: (err) => {
       setMessage(err.message);
-      toast.error("Gmail watch refresh failed", { description: err.message });
+      toast.error("Calendar watch refresh failed", { description: err.message });
     },
   });
 
