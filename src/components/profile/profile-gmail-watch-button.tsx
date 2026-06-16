@@ -14,7 +14,7 @@ export function ProfileGmailWatchButton() {
         const expires = data.expiration
           ? new Date(Number(data.expiration)).toLocaleString()
           : "unknown";
-        setMessage(`Gmail watch renewed (expires ${expires})`);
+        setMessage(`Watch renewed (expires ${expires})`);
         toast.success("Gmail watch refreshed", {
           description: `Push notifications active until ${expires}`,
         });

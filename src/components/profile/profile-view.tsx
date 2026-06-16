@@ -1,85 +1,53 @@
-import type { ReactNode } from "react";
-import Link from "next/link";
+"use client";
+
+import { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  ArrowLeft01Icon,
   Calendar03Icon,
   InboxIcon,
+  SecurityCheckIcon,
 } from "@hugeicons/core-free-icons";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import { MailSidebar } from "@/components/mail/mail-sidebar";
 import { initials } from "@/components/mail/mail-utils";
-import { ProfileGmailWatchButton } from "@/components/profile/profile-gmail-watch-button";
 import { ProfileCalendarWatchButton } from "@/components/profile/profile-calendar-watch-button";
+import { ProfileConnectedServiceRow } from "@/components/profile/profile-connected-service-row";
+import { ProfileGmailWatchButton } from "@/components/profile/profile-gmail-watch-button";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { useInboxNewCount, useMailRealtimeConnection } from "@/hooks/use-mail-realtime";
+import { fetchAndSyncListThreads } from "@/lib/mail-list-cache";
+import { cn } from "@/lib/utils";
+import { api } from "@/trpc/react";
 
 type ProfileViewProps = {
   userName: string;
   userEmail: string;
   userImage: string;
+  joinedLabel: string;
   gmailConnected: boolean;
   calendarConnected: boolean;
 };
 
-function ConnectionRow({
+function ProfileInfoBadge({
   icon,
-  title,
-  description,
-  connected,
-  connectHref,
-  connectedAction,
+  children,
 }: {
-  icon: typeof InboxIcon;
-  title: string;
-  description: string;
-  connected: boolean;
-  connectHref: string;
-  connectedAction?: ReactNode;
+  icon: typeof Calendar03Icon;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="flex size-8 shrink-0 items-center justify-center bg-muted text-foreground">
-          <HugeiconsIcon icon={icon} strokeWidth={2} className="size-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">{title}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-2">
-        <Badge
-          variant={connected ? "outline" : "destructive"}
-          className={
-            connected
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              : undefined
-          }
-        >
-          {connected ? "Connected" : "Not connected"}
-        </Badge>
-        {!connected ? (
-          <Link
-            href={connectHref}
-            className={cn(buttonVariants({ variant: "outline", size: "xs" }))}
-          >
-            Connect
-          </Link>
-        ) : (
-          connectedAction
-        )}
-      </div>
-    </div>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-[0.5rem]",
+        "border border-white/8 bg-white/[0.04] px-2.5 py-1",
+        "text-xs text-muted-foreground",
+      )}
+    >
+      <HugeiconsIcon icon={icon} strokeWidth={2} className="size-3.5 shrink-0" />
+      {children}
+    </span>
   );
 }
 
@@ -87,85 +55,121 @@ export function ProfileView({
   userName,
   userEmail,
   userImage,
+  joinedLabel,
   gmailConnected,
   calendarConnected,
 }: ProfileViewProps) {
+  const router = useRouter();
+  const utils = api.useUtils();
+
+  const fetchInboxThreads = useCallback(async () => {
+    const data = await fetchAndSyncListThreads(utils.gmail.listThreads, "INBOX");
+    return data.threads;
+  }, [utils]);
+
+  const inboxNewCount = useInboxNewCount(false, fetchInboxThreads);
+  useMailRealtimeConnection();
+
   return (
-    <main className="min-h-svh bg-background px-4 py-8 text-foreground">
-      <div className="mx-auto w-full max-w-lg">
-        <Link
-          href="/mail"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "mb-6 -ml-2 text-muted-foreground",
-          )}
-        >
-          <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
-          Back to mail
-        </Link>
+    <SidebarProvider className="flex h-svh w-full overflow-hidden bg-background text-foreground">
+      <MailSidebar
+        activeWorkspace="mail"
+        activeLabel="INBOX"
+        onLabelChange={() => router.push("/mail")}
+        onCompose={() => router.push("/mail")}
+        userEmail={userEmail}
+        userName={userName}
+        userImage={userImage}
+        inboxNewCount={inboxNewCount}
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile</CardTitle>
-            <CardDescription>
-              Your MailPilot account and connected services
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-6">
-            <div className="flex items-center gap-4">
-              <Avatar size="lg">
-                {userImage ? (
-                  <AvatarImage src={userImage} alt={userName} />
-                ) : null}
-                <AvatarFallback className="text-sm font-semibold">
-                  {initials(userName, userEmail)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="truncate text-lg font-semibold text-foreground">
-                  {userName || "Signed in"}
-                </p>
-                <p className="truncate text-sm text-muted-foreground">
-                  {userEmail}
-                </p>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
+        <div className="mx-auto w-full max-w-4xl px-6 py-8 md:px-10 md:py-10">
+          <header className="mb-8">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              Profile
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage your account and connected services
+            </p>
+          </header>
+
+          <section
+            className={cn(
+              "mb-8 rounded-[1rem] border border-white/8",
+              "bg-[linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]",
+              "p-6 shadow-sm md:p-7",
+            )}
+          >
+            <div className="flex min-w-0 flex-1 gap-5">
+                <Avatar className="size-24 shrink-0 md:size-28">
+                  {userImage ? (
+                    <AvatarImage src={userImage} alt={userName} />
+                  ) : null}
+                  <AvatarFallback className="text-lg font-semibold">
+                    {initials(userName, userEmail)}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div className="min-w-0 pt-1">
+                  <p className="truncate text-2xl font-bold text-foreground">
+                    {userName || "Signed in"}
+                  </p>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">
+                    {userEmail}
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <ProfileInfoBadge icon={Calendar03Icon}>
+                      {joinedLabel}
+                    </ProfileInfoBadge>
+                    <ProfileInfoBadge icon={SecurityCheckIcon}>
+                      Account type Personal
+                    </ProfileInfoBadge>
+                  </div>
+                </div>
               </div>
-            </div>
+          </section>
 
-            <Separator />
+          <section>
+            <h2 className="mb-4 text-lg font-semibold text-foreground">
+              Connected services
+            </h2>
 
-            <div className="flex flex-col gap-4">
-              <h2 className="text-sm font-medium text-foreground">
-                Connected services
-              </h2>
-              <ConnectionRow
+            <div
+              className={cn(
+                "overflow-hidden rounded-[1rem] border border-white/8",
+                "bg-[linear-gradient(145deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]",
+              )}
+            >
+              <ProfileConnectedServiceRow
                 icon={InboxIcon}
                 title="Gmail"
                 description="Read, search, and send mail through MailPilot."
                 connected={gmailConnected}
                 connectHref="/api/corsair/connect?plugin=gmail"
-                connectedAction={<ProfileGmailWatchButton />}
+                connectedAction={
+                  gmailConnected ? <ProfileGmailWatchButton /> : undefined
+                }
               />
-              <ConnectionRow
+
+              <div className="mx-6 border-t border-white/8" />
+
+              <ProfileConnectedServiceRow
                 icon={Calendar03Icon}
                 title="Google Calendar"
                 description="View and manage calendar events."
                 connected={calendarConnected}
                 connectHref="/api/corsair/connect?plugin=googlecalendar"
-                connectedAction={<ProfileCalendarWatchButton />}
+                connectedAction={
+                  calendarConnected ? (
+                    <ProfileCalendarWatchButton />
+                  ) : undefined
+                }
               />
             </div>
-
-            {!gmailConnected || !calendarConnected ? (
-              <Link
-                href="/connect"
-                className={cn(buttonVariants({ variant: "default" }), "w-full")}
-              >
-                Manage connections
-              </Link>
-            ) : null}
-          </CardContent>
-        </Card>
+          </section>
+        </div>
       </div>
-    </main>
+    </SidebarProvider>
   );
 }

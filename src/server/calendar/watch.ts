@@ -1,90 +1,33 @@
 import "server-only";
 
 import { corsair } from "@/server/corsair";
+import {
+  accountPluginKeys,
+  getPluginAccessToken,
+} from "@/server/oauth/google-access-token";
 
 const CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-type PluginKeys = {
-  get_client_id?: () => Promise<string | null>;
-  get_client_secret?: () => Promise<string | null>;
-  get_refresh_token?: () => Promise<string | null>;
-  get_access_token?: () => Promise<string | null>;
-  get_expires_at?: () => Promise<string | null>;
-  set_access_token?: (value: string | null) => Promise<void>;
-  set_expires_at?: (value: string | null) => Promise<void>;
-};
-
-function accountPluginKeys(client: unknown): PluginKeys {
-  if (client == null || typeof client !== "object") return {};
-  return (client as { keys?: PluginKeys }).keys ?? {};
+function calendarIntegrationKeys() {
+  return (
+    (corsair as { keys?: { googlecalendar?: ReturnType<typeof accountPluginKeys> } })
+      .keys?.googlecalendar ?? {}
+  );
 }
 
-function calendarIntegrationKeys(): PluginKeys {
-  const keys = (corsair as { keys?: { googlecalendar?: PluginKeys } }).keys
-    ?.googlecalendar;
-  return keys ?? {};
-}
-
-async function refreshGoogleAccessToken(
-  clientId: string,
-  clientSecret: string,
-  refreshToken: string,
-): Promise<{ access_token: string; expires_in: number }> {
-  const response = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token",
-    }),
+async function getCalendarAccessToken(
+  tenantId: string,
+  forceRefresh = false,
+): Promise<string> {
+  return getPluginAccessToken({
+    tenantId,
+    pluginLabel: "Google Calendar",
+    integrationKeys: calendarIntegrationKeys(),
+    accountKeys: accountPluginKeys(
+      corsair.withTenant(tenantId).googlecalendar,
+    ),
+    forceRefresh,
   });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to refresh Calendar access token: ${error}`);
-  }
-
-  return (await response.json()) as { access_token: string; expires_in: number };
-}
-
-async function getCalendarAccessToken(tenantId: string): Promise<string> {
-  const integrationKeys = calendarIntegrationKeys();
-  const accountKeys = accountPluginKeys(
-    corsair.withTenant(tenantId).googlecalendar,
-  );
-
-  const clientId = await integrationKeys.get_client_id?.();
-  const clientSecret = await integrationKeys.get_client_secret?.();
-  const refreshToken = await accountKeys.get_refresh_token?.();
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error(
-      "Google Calendar OAuth credentials are missing for this tenant. Reconnect Calendar.",
-    );
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  const accessToken = await accountKeys.get_access_token?.();
-  const expiresAtRaw = await accountKeys.get_expires_at?.();
-  const expiresAt = expiresAtRaw ? Number(expiresAtRaw) : 0;
-
-  if (accessToken && expiresAt > now + 300) {
-    return accessToken;
-  }
-
-  const refreshed = await refreshGoogleAccessToken(
-    clientId,
-    clientSecret,
-    refreshToken,
-  );
-
-  await accountKeys.set_access_token?.(refreshed.access_token);
-  await accountKeys.set_expires_at?.(String(now + refreshed.expires_in));
-
-  return refreshed.access_token;
 }
 
 export type CalendarWatchResult = {
@@ -93,40 +36,122 @@ export type CalendarWatchResult = {
   expiration: string;
 };
 
+export class CalendarWatchConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CalendarWatchConfigError";
+  }
+}
+
+const CALENDAR_HTTPS_HELP =
+  "Calendar push requires HTTPS. For local dev: run `ngrok http 3000`, set APP_URL to the https://… URL in `.env`, then restart the dev server.";
+
+/** Webhook URL Google Calendar will call — must be HTTPS. */
+export function resolveCalendarWebhookUrl(): string {
+  const appUrl = process.env.APP_URL?.trim();
+  if (!appUrl) {
+    throw new CalendarWatchConfigError("APP_URL is not configured in `.env`.");
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(appUrl);
+  } catch {
+    throw new CalendarWatchConfigError("APP_URL is not a valid URL.");
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new CalendarWatchConfigError(CALENDAR_HTTPS_HELP);
+  }
+
+  return `${appUrl.replace(/\/$/, "")}/api/webhooks`;
+}
+
+function parseCalendarWatchApiError(errorBody: string): string | null {
+  try {
+    const data = JSON.parse(errorBody) as {
+      error?: {
+        message?: string;
+        errors?: { reason?: string }[];
+      };
+    };
+    const reasons = data.error?.errors?.map((e) => e.reason) ?? [];
+    if (
+      reasons.includes("push.webhookUrlNotHttps") ||
+      data.error?.message?.includes("WebHook callback must be HTTPS")
+    ) {
+      return CALENDAR_HTTPS_HELP;
+    }
+  } catch {
+    // not JSON
+  }
+  return null;
+}
+
+async function registerCalendarWatch(
+  accessToken: string,
+  channelId: string,
+  webhookUrl: string,
+): Promise<Response> {
+  return fetch(`${CALENDAR_API_BASE}/calendars/primary/events/watch`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: channelId,
+      type: "web_hook",
+      address: webhookUrl,
+    }),
+  });
+}
+
 /** Register Calendar → webhook push for the tenant's primary calendar. */
 export async function setupCalendarWatch(
   tenantId: string,
+  options?: { strict?: boolean },
 ): Promise<CalendarWatchResult | null> {
-  const appUrl = process.env.APP_URL?.trim();
-  if (!appUrl) {
-    console.warn(
-      "[calendar:watch] APP_URL is not set — skipping Calendar watch setup.",
-    );
-    return null;
+  let webhookUrl: string;
+  try {
+    webhookUrl = resolveCalendarWebhookUrl();
+  } catch (err) {
+    if (err instanceof CalendarWatchConfigError) {
+      if (options?.strict) throw err;
+      console.warn(`[calendar:watch] ${err.message}`);
+      return null;
+    }
+    throw err;
   }
 
-  const accessToken = await getCalendarAccessToken(tenantId);
   const channelId = `${tenantId}.${crypto.randomUUID()}`;
-  const webhookUrl = `${appUrl.replace(/\/$/, "")}/api/webhooks`;
-
-  const response = await fetch(
-    `${CALENDAR_API_BASE}/calendars/primary/events/watch`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        id: channelId,
-        type: "web_hook",
-        address: webhookUrl,
-      }),
-    },
+  let accessToken = await getCalendarAccessToken(tenantId);
+  let response = await registerCalendarWatch(
+    accessToken,
+    channelId,
+    webhookUrl,
   );
+
+  if (response.status === 401) {
+    accessToken = await getCalendarAccessToken(tenantId, true);
+    response = await registerCalendarWatch(
+      accessToken,
+      channelId,
+      webhookUrl,
+    );
+  }
 
   if (!response.ok) {
     const error = await response.text();
+    if (response.status === 401) {
+      throw new Error(
+        `Calendar watch failed: invalid OAuth credentials. Reconnect Google Calendar at /api/corsair/connect?plugin=googlecalendar. (${error})`,
+      );
+    }
+    const configMessage = parseCalendarWatchApiError(error);
+    if (configMessage) {
+      throw new CalendarWatchConfigError(configMessage);
+    }
     throw new Error(`Calendar watch failed: ${error}`);
   }
 

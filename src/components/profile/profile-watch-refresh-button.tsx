@@ -20,43 +20,37 @@ export function ProfileWatchRefreshButton({
   message,
 }: ProfileWatchRefreshButtonProps) {
   return (
-    <div
-      className={cn(
-        "flex max-w-[11.5rem] flex-col items-stretch gap-2",
-        "rounded-[0.75rem] border border-border/70 bg-muted/25 p-2.5",
-        "shadow-sm",
-      )}
-    >
+    <div className="flex max-w-[11rem] flex-col items-end gap-1.5">
       <Button
         type="button"
         variant="outline"
         disabled={isPending}
         onClick={onClick}
         className={cn(
-          "h-9 w-full gap-2 rounded-[0.625rem] px-3 text-sm font-semibold",
-          "border-border/80 bg-background shadow-sm",
-          "transition-all hover:border-muted-foreground/35 hover:bg-muted/40 hover:shadow",
+          "h-10 w-full gap-2 rounded-[0.75rem] px-3 text-sm font-medium",
+          "border-white/12 bg-white/[0.04] text-foreground shadow-sm",
+          "transition-all hover:border-white/20 hover:bg-white/[0.07]",
           "active:scale-[0.98]",
         )}
       >
         <HugeiconsIcon
           icon={ArrowReloadHorizontalIcon}
           strokeWidth={2}
-          className={cn("size-3.5 shrink-0", isPending && "animate-spin")}
+          className={cn("size-4 shrink-0", isPending && "animate-spin")}
         />
         {isPending ? "Refreshing…" : "Refresh watch"}
       </Button>
 
-      <p className="text-center text-[11px] leading-snug text-muted-foreground">
+      <p className="text-right text-[10px] leading-snug text-muted-foreground/80">
         {hint}
       </p>
 
       {message ? (
         <p
           className={cn(
-            "border-t border-border/60 pt-2 text-center text-[10px] leading-snug",
+            "text-right text-[10px] leading-snug",
             message.toLowerCase().includes("renewed")
-              ? "text-emerald-600 dark:text-emerald-400"
+              ? "text-emerald-500"
               : "text-destructive",
           )}
         >

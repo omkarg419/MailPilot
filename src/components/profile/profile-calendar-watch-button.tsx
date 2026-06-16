@@ -14,7 +14,7 @@ export function ProfileCalendarWatchButton() {
         const expires = data.expiration
           ? new Date(Number(data.expiration)).toLocaleString()
           : "unknown";
-        setMessage(`Calendar watch renewed (expires ${expires})`);
+        setMessage(`Watch renewed (expires ${expires})`);
         toast.success("Calendar watch refreshed", {
           description: `Push notifications active until ${expires}`,
         });

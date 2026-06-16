@@ -205,9 +205,13 @@ export const calendarRouter = createTRPCRouter({
     }),
 
   refreshWatch: protectedProcedure.mutation(async ({ ctx }) => {
-    const { setupCalendarWatch } = await import("@/server/calendar/watch");
+    const { CalendarWatchConfigError, setupCalendarWatch } = await import(
+      "@/server/calendar/watch"
+    );
     try {
-      const result = await setupCalendarWatch(ctx.session.user.id);
+      const result = await setupCalendarWatch(ctx.session.user.id, {
+        strict: true,
+      });
       if (!result) {
         return {
           success: false as const,
@@ -220,6 +224,20 @@ export const calendarRouter = createTRPCRouter({
         channelId: result.channelId,
       };
     } catch (err) {
+      if (err instanceof CalendarWatchConfigError) {
+        return {
+          success: false as const,
+          message: err.message,
+        };
+      }
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("invalid OAuth credentials")) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message:
+            "Google Calendar session expired. Reconnect at Profile → Google Calendar → Reconnect service.",
+        });
+      }
       wrapError(err, "refreshWatch");
     }
   }),
