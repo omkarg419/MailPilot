@@ -24,7 +24,7 @@ export function UserAccountMenu() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="shrink-0 text-sidebar-foreground"
+            className="size-8 shrink-0 rounded-[0.5rem] text-muted-foreground hover:bg-white/[0.06] hover:text-sidebar-foreground"
           />
         }
       >

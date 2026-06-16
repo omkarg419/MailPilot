@@ -1,9 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  AiUserIcon,
   Calendar03Icon,
   Delete02Icon,
   InboxIcon,
@@ -11,9 +11,9 @@ import {
   MailSendIcon,
   PencilEdit01Icon,
   SpamIcon,
+  StarsIcon,
 } from "@hugeicons/core-free-icons";
 
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -27,7 +27,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
+import { MailPilotLogo } from "./mail-pilot-logo";
 import { SidebarUserFooter } from "./sidebar-user-footer";
 import { LABEL_NAMES, type MailboxLabel } from "./types";
 
@@ -40,6 +42,9 @@ const MAIL_NAV: {
   { id: "SPAM", icon: SpamIcon },
   { id: "TRASH", icon: Delete02Icon },
 ];
+
+const navButtonClass =
+  "h-9 rounded-[0.5rem] px-3 text-sm font-medium text-sidebar-foreground/90 hover:bg-white/[0.06] hover:text-sidebar-foreground data-active:bg-white/[0.08] data-active:text-sidebar-foreground data-active:shadow-none";
 
 type MailSidebarProps = {
   activeWorkspace?: "mail" | "agent" | "calendar";
@@ -66,34 +71,68 @@ export function MailSidebar({
   const isCalendar = activeWorkspace === "calendar";
   const leaveMailWorkspace = isAgent || isCalendar;
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "k"
+      ) {
+        event.preventDefault();
+        onCompose();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onCompose]);
+
   return (
-    <Sidebar collapsible="none" className="border-r border-sidebar-border">
-      <SidebarHeader className="gap-4 p-4">
-        <div className="px-2">
-          <span className="text-xl font-extrabold tracking-tight text-sidebar-foreground">
+    <Sidebar
+      collapsible="none"
+      className="border-r border-white/[0.06] bg-sidebar"
+    >
+      <SidebarHeader className="gap-5 px-4 pb-2 pt-5">
+        <div className="flex items-center gap-2.5 px-1">
+          <MailPilotLogo />
+          <span className="text-[1.35rem] font-bold tracking-tight text-sidebar-foreground">
             MailPilot
           </span>
         </div>
-        <Button
+
+        <button
           type="button"
-          variant="default"
-          size="icon-sm"
-          className="h-9 w-full justify-center gap-2 rounded-full font-semibold shadow-sm transition-all hover:bg-primary/90 hover:shadow-md active:scale-[0.98]"
           onClick={onCompose}
+          className={cn(
+            "flex h-11 w-full items-center gap-3 rounded-[0.75rem] px-3",
+            "bg-white/[0.06] text-sm font-medium text-sidebar-foreground",
+            "transition-all hover:bg-white/[0.09] active:scale-[0.99]",
+          )}
         >
-          <HugeiconsIcon icon={PencilEdit01Icon} strokeWidth={2} />
-          Compose
-        </Button>
+          <HugeiconsIcon
+            icon={PencilEdit01Icon}
+            strokeWidth={2}
+            className="size-4 shrink-0 text-sidebar-primary"
+          />
+          <span className="flex-1 text-left">Compose</span>
+          <kbd className="rounded-[0.4rem] border border-white/10 bg-black/25 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground">
+            ⌘ K
+          </kbd>
+        </button>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+      <SidebarContent className="gap-6 px-3">
+        <SidebarGroup className="p-0">
+          <SidebarGroupLabel className="h-auto px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/55">
+            Workspace
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-0.5">
               <SidebarMenuItem>
                 {leaveMailWorkspace ? (
-                  <SidebarMenuButton render={<Link href="/mail" />}>
+                  <SidebarMenuButton
+                    render={<Link href="/mail" />}
+                    className={navButtonClass}
+                  >
                     <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
                     Inbox
                     {inboxNewCount > 0 ? (
@@ -104,6 +143,7 @@ export function MailSidebar({
                   <SidebarMenuButton
                     isActive={activeLabel === "INBOX"}
                     onClick={() => onLabelChange("INBOX")}
+                    className={navButtonClass}
                   >
                     <HugeiconsIcon icon={InboxIcon} strokeWidth={2} />
                     Inbox
@@ -117,6 +157,7 @@ export function MailSidebar({
                 <SidebarMenuButton
                   isActive={isCalendar}
                   render={isCalendar ? undefined : <Link href="/calendar" />}
+                  className={navButtonClass}
                 >
                   <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} />
                   Calendar
@@ -126,8 +167,9 @@ export function MailSidebar({
                 <SidebarMenuButton
                   isActive={isAgent}
                   render={isAgent ? undefined : <Link href="/agent" />}
+                  className={navButtonClass}
                 >
-                  <HugeiconsIcon icon={AiUserIcon} strokeWidth={2} />
+                  <HugeiconsIcon icon={StarsIcon} strokeWidth={2} />
                   Agent
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -135,14 +177,19 @@ export function MailSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Mail</SidebarGroupLabel>
+        <SidebarGroup className="p-0">
+          <SidebarGroupLabel className="h-auto px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/55">
+            Mail
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-0.5">
               {MAIL_NAV.map(({ id, icon }) => (
                 <SidebarMenuItem key={id}>
                   {leaveMailWorkspace ? (
-                    <SidebarMenuButton render={<Link href="/mail" />}>
+                    <SidebarMenuButton
+                      render={<Link href="/mail" />}
+                      className={navButtonClass}
+                    >
                       <HugeiconsIcon icon={icon} strokeWidth={2} />
                       {LABEL_NAMES[id]}
                     </SidebarMenuButton>
@@ -150,6 +197,7 @@ export function MailSidebar({
                     <SidebarMenuButton
                       isActive={activeLabel === id}
                       onClick={() => onLabelChange(id)}
+                      className={navButtonClass}
                     >
                       <HugeiconsIcon icon={icon} strokeWidth={2} />
                       {LABEL_NAMES[id]}
@@ -162,7 +210,7 @@ export function MailSidebar({
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 pt-2">
         <SidebarUserFooter
           userEmail={userEmail}
           userName={userName}

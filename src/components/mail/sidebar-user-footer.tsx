@@ -20,30 +20,37 @@ export function SidebarUserFooter({
   userImage,
 }: SidebarUserFooterProps) {
   return (
-    <div className="flex items-center gap-1 px-2">
-      <Link
-        href="/profile"
-        className={cn(
-          "flex min-w-0 flex-1 items-center gap-2 rounded-md p-1 -ml-1",
-          "transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        )}
-      >
-        <Avatar size="sm">
-          {userImage ? (
-            <AvatarImage src={userImage} alt={userName} />
-          ) : null}
-          <AvatarFallback className="text-xs font-semibold">
-            {initials(userName, userEmail)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1 text-left">
-          <p className="truncate text-xs font-medium text-sidebar-foreground">
-            {userName || "Signed in"}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">{userEmail}</p>
-        </div>
-      </Link>
-      <UserAccountMenu />
+    <div
+      className={cn(
+        "rounded-[0.75rem] border border-sidebar-primary/25 bg-white/[0.02] p-2.5",
+        "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)]",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Link
+          href="/profile"
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-2.5 rounded-[0.5rem] p-1",
+            "transition-colors hover:bg-white/[0.04]",
+          )}
+        >
+          <Avatar className="size-9 shrink-0">
+            {userImage ? (
+              <AvatarImage src={userImage} alt={userName} />
+            ) : null}
+            <AvatarFallback className="text-xs font-semibold">
+              {initials(userName, userEmail)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1 text-left">
+            <p className="truncate text-sm font-semibold text-sidebar-foreground">
+              {userName || "Signed in"}
+            </p>
+            <p className="truncate text-xs text-sidebar-primary">{userEmail}</p>
+          </div>
+        </Link>
+        <UserAccountMenu />
+      </div>
     </div>
   );
 }
