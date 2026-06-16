@@ -328,7 +328,7 @@ function AgentInputArea({
           placeholder={
             limitReached
               ? "Agent limit reached for the next 24 hours…"
-              : "Ask MailPilot Agent…"
+              : "Ask about inbox, emails, or calendar…"
           }
           disabled={inputDisabled}
           rows={1}
@@ -487,6 +487,27 @@ export function AgentChat({
           data?.error ??
             `Limit reached (${data?.used ?? usageLimit}/${data?.limit ?? usageLimit}). Resets ${resetLabel}.`,
         );
+      }
+      if (res.status === 422) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+          code?: string;
+        } | null;
+        if (data?.code === "OFF_TOPIC") {
+          const refusal =
+            data.error ??
+            "I can only help with Gmail and Google Calendar tasks in MailPilot.";
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId && m.role === "assistant"
+                ? { ...m, blocks: [{ kind: "text", content: refusal }] }
+                : m,
+            ),
+          );
+          scrollToBottom();
+          return;
+        }
+        throw new Error(data?.error ?? "Request not allowed.");
       }
       if (!res.ok || !res.body) {
         const data = (await res.json().catch(() => null)) as {

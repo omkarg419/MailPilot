@@ -9,6 +9,7 @@ import {
   handleUiAgentTool,
   UI_AGENT_TOOLS,
 } from "@/server/agent/agent-tools";
+import { classifyAgentMessage } from "@/server/agent/guardrails";
 import {
   AgentRateLimitError,
   consumeAgentRequest,
@@ -54,6 +55,17 @@ export async function POST(req: Request) {
   const lastUserMessage =
     [...body.messages].reverse().find((m) => m.role === "user")?.content ?? "";
   const exemptRateLimit = isPostBookingFollowUpPrompt(lastUserMessage);
+  const skipGuardrail = exemptRateLimit;
+
+  if (!skipGuardrail) {
+    const guard = await classifyAgentMessage(lastUserMessage);
+    if (!guard.allowed) {
+      return Response.json(
+        { error: guard.reason, code: "OFF_TOPIC" },
+        { status: 422 },
+      );
+    }
+  }
 
   if (!exemptRateLimit) {
     try {
