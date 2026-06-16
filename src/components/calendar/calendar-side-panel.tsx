@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Clock01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 
@@ -25,6 +25,13 @@ type CalendarSidePanelProps = {
   onEventSelect: (event: CalendarEventView) => void;
 };
 
+function startOfMonth(date: Date): Date {
+  const d = new Date(date);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function formatDayListHeading(day: Date): string {
   if (isToday(day)) return "Today";
   return day.toLocaleDateString(undefined, {
@@ -42,6 +49,23 @@ export function CalendarSidePanel({
   onSelectDay,
   onEventSelect,
 }: CalendarSidePanelProps) {
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    startOfMonth(selectedDay),
+  );
+
+  useEffect(() => {
+    const next = startOfMonth(selectedDay);
+    setVisibleMonth((current) => {
+      if (
+        current.getFullYear() === next.getFullYear() &&
+        current.getMonth() === next.getMonth()
+      ) {
+        return current;
+      }
+      return next;
+    });
+  }, [selectedDay]);
+
   const { upcomingEvents, pastEvents } = useMemo(() => {
     const sorted = eventsOnDayForSidePanel(events, selectedDay);
     let splitAt = 0;
@@ -119,7 +143,8 @@ export function CalendarSidePanel({
           <Calendar
             mode="single"
             selected={selectedDay}
-            month={selectedDay}
+            month={visibleMonth}
+            onMonthChange={setVisibleMonth}
             onSelect={(day) => {
               if (day) {
                 onSelectDay(day);
