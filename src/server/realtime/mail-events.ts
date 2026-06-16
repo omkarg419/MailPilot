@@ -8,27 +8,6 @@ export type MailRealtimeEvent =
 type MailRealtimeListener = (event: MailRealtimeEvent) => void;
 
 const LISTENERS_KEY = "__mailPilotRealtimeListeners__" as const;
-const NOTIFY_DEBOUNCE_KEY = "__mailPilotNotifyDebounce__" as const;
-
-/** Min gap between SSE pushes per tenant (Gmail can spam webhooks). */
-const SSE_NOTIFY_MIN_INTERVAL_MS = 30_000;
-
-function getNotifyDebounceMap(): Map<string, number> {
-  const globalStore = globalThis as typeof globalThis & {
-    [NOTIFY_DEBOUNCE_KEY]?: Map<string, number>;
-  };
-  globalStore[NOTIFY_DEBOUNCE_KEY] ??= new Map();
-  return globalStore[NOTIFY_DEBOUNCE_KEY];
-}
-
-function shouldDeliverSseNotify(tenantId: string, eventType: string): boolean {
-  const key = `${tenantId}:${eventType}`;
-  const debounce = getNotifyDebounceMap();
-  const lastAt = debounce.get(key) ?? 0;
-  if (Date.now() - lastAt < SSE_NOTIFY_MIN_INTERVAL_MS) return false;
-  debounce.set(key, Date.now());
-  return true;
-}
 
 function getListenerRegistry(): Map<string, Set<MailRealtimeListener>> {
   const globalStore = globalThis as typeof globalThis & {
@@ -101,7 +80,6 @@ function notifyRealtimeForTenants(
   for (const tenantId of uniqueTenantIds) {
     const listeners = registry.get(tenantId);
     if (!listeners?.size) continue;
-    if (!shouldDeliverSseNotify(tenantId, event.type)) continue;
     delivered += listeners.size;
     for (const listener of listeners) {
       listener(event);
@@ -111,8 +89,12 @@ function notifyRealtimeForTenants(
   if (delivered === 0) {
     const active = mailRealtimeActiveTenantIds();
     console.warn(
-      `[mail:realtime] No SSE listeners for webhook tenant(s) [${tenantIds.join(", ")}] ` +
-        `(event: ${event.type}). Active SSE tenant(s): [${active.join(", ") || "none"}]. ` +
+      `[mail:realtime] No SSE listeners for webhook tenant(s) [${tenantIds.join(
+        ", ",
+      )}] ` +
+        `(event: ${event.type}). Active SSE tenant(s): [${
+          active.join(", ") || "none"
+        }]. ` +
         `Usually a sign-in / connect mismatch — reconnect at /api/corsair/connect?plugin=... while signed in.`,
     );
   }

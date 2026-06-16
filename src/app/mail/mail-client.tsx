@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { MailSidebar } from "@/components/mail/mail-sidebar";
@@ -9,6 +9,10 @@ import { ThreadView } from "@/components/mail/thread-view";
 import type { MailboxLabel } from "@/components/mail/types";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useMailRealtimeInbox, useInboxNewCount } from "@/hooks/use-mail-realtime";
+import {
+  fetchAndSyncListThreads,
+  getListThreadsQueryInput,
+} from "@/lib/mail-list-cache";
 import { api } from "@/trpc/react";
 import { ComposeModal, type ComposeInitial } from "./compose-modal";
 
@@ -26,24 +30,34 @@ export function MailClient({
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [compose, setCompose] = useState<ComposeInitial | null>(null);
+  const [isManualRefresh, setIsManualRefresh] = useState(false);
 
   const utils = api.useUtils();
 
+  const listThreadsInput = useMemo(
+    () => getListThreadsQueryInput(label, query),
+    [label, query],
+  );
+
+  const syncCurrentList = useCallback(async () => {
+    await fetchAndSyncListThreads(utils.gmail.listThreads, label, query);
+  }, [label, query, utils]);
+
   const fetchInboxThreads = useCallback(async () => {
-    const data = await utils.gmail.listThreads.fetch({
-      label: "INBOX",
-      refresh: true,
-    });
+    const data = await fetchAndSyncListThreads(
+      utils.gmail.listThreads,
+      "INBOX",
+    );
     return data.threads;
   }, [utils]);
 
   const refreshLive = useCallback(() => {
-    void utils.gmail.listThreads.fetch({
-      label,
-      q: query || undefined,
-      refresh: true,
-    });
-  }, [label, query, utils]);
+    void syncCurrentList();
+    // Keep INBOX cache warm even when viewing Sent/Draft/Trash.
+    if (label !== "INBOX" || query) {
+      void fetchAndSyncListThreads(utils.gmail.listThreads, "INBOX");
+    }
+  }, [syncCurrentList, label, query, utils]);
 
   useMailRealtimeInbox(refreshLive);
   const inboxNewCount = useInboxNewCount(
@@ -57,26 +71,9 @@ export function MailClient({
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const listThreadsInput = {
-    label,
-    q: query || undefined,
-  };
-
-  const refreshThreadLists = useCallback(
-    (labels: MailboxLabel[] = [label, "TRASH"]) => {
-      for (const mailboxLabel of labels) {
-        void utils.gmail.listThreads.fetch({
-          label: mailboxLabel,
-          q: mailboxLabel === label ? query || undefined : undefined,
-          refresh: true,
-        });
-      }
-    },
-    [label, query, utils],
-  );
-
   const threadsQuery = api.gmail.listThreads.useQuery(listThreadsInput, {
-    staleTime: 0,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const threadQuery = api.gmail.getThread.useQuery(
@@ -89,7 +86,7 @@ export function MailClient({
 
   const markRead = api.gmail.markRead.useMutation({
     onMutate: async ({ threadId, read }) => {
-      const input = { label, q: query || undefined };
+      const input = listThreadsInput;
       await utils.gmail.listThreads.cancel(input).catch(() => undefined);
 
       const previous = utils.gmail.listThreads.getData(input);
@@ -137,9 +134,6 @@ export function MailClient({
         utils.gmail.listThreads.setData(listThreadsInput, context.previous);
       }
     },
-    onSettled: () => {
-      refreshThreadLists([label, "TRASH"]);
-    },
   });
   const untrash = api.gmail.untrash.useMutation({
     onMutate: async ({ threadId }) => {
@@ -164,12 +158,16 @@ export function MailClient({
         utils.gmail.listThreads.setData(listThreadsInput, context.previous);
       }
     },
-    onSettled: () => {
-      refreshThreadLists([label, "INBOX"]);
-    },
   });
 
-  const refresh = refreshLive;
+  const refresh = useCallback(async () => {
+    setIsManualRefresh(true);
+    try {
+      await syncCurrentList();
+    } finally {
+      setIsManualRefresh(false);
+    }
+  }, [syncCurrentList]);
 
   const threads = threadsQuery.data?.threads ?? [];
 
@@ -180,7 +178,7 @@ export function MailClient({
 
   const onSent = () => {
     setCompose(null);
-    void utils.gmail.listThreads.invalidate();
+    void syncCurrentList();
     if (selectedThreadId) void utils.gmail.getThread.invalidate();
   };
 
@@ -206,6 +204,7 @@ export function MailClient({
         <ThreadList
           threads={threads}
           isLoading={threadsQuery.isLoading}
+          isRefreshing={isManualRefresh}
           selectedThreadId={selectedThreadId}
           searchInput={searchInput}
           onSearchChange={(value) => {

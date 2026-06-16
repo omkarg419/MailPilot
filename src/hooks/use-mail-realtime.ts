@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /** One delayed refresh after a webhook burst (Gmail can lag behind push). */
-const INBOX_REFRESH_DELAYS_MS = [0, 2_000] as const;
+const INBOX_REFRESH_DELAYS_MS = [1_500] as const;
 const CALENDAR_REFRESH_DELAYS_MS = [0, 2_000] as const;
 
 const MAIL_INBOX_TOAST_ID = "mail-inbox-sync";
@@ -12,6 +12,8 @@ const MAIL_INBOX_TOAST_ID = "mail-inbox-sync";
 const SHARED_KEY = "__mailPilotMailRealtimeShared__" as const;
 const SUPPRESS_UNTIL_KEY = "__mailPilotSuppressInboxNotifyUntil__" as const;
 const KNOWN_THREADS_KEY = "__mailPilotKnownInboxThreads__" as const;
+const LAST_NOTIFY_AT_KEY = "__mailPilotLastInboxNotifyAt__" as const;
+const NOTIFY_COOLDOWN_MS = 8_000;
 
 /** Background inbox refresh (silent — no toast from SSE). */
 export const MAIL_INBOX_CHANGED_EVENT = "mailpilot:inbox_changed";
@@ -28,6 +30,7 @@ type GlobalStore = typeof globalThis & {
   [SHARED_KEY]?: SharedConnection;
   [SUPPRESS_UNTIL_KEY]?: number;
   [KNOWN_THREADS_KEY]?: Set<string>;
+  [LAST_NOTIFY_AT_KEY]?: number;
 };
 
 function getSharedConnection(): SharedConnection | null {
@@ -197,9 +200,13 @@ export function useInboxNewCount(
   const [count, setCount] = useState(0);
   const fetchRef = useRef(fetchInboxThreads);
   fetchRef.current = fetchInboxThreads;
+  const isViewingRef = useRef(isViewingInbox);
+  isViewingRef.current = isViewingInbox;
   const seededRef = useRef(false);
 
   const checkForNewMail = useCallback(async () => {
+    if (isViewingRef.current) return;
+
     try {
       const threads = await fetchRef.current();
       const known = getKnownThreadIds();
@@ -218,13 +225,18 @@ export function useInboxNewCount(
       for (const id of ids) known.add(id);
 
       if (added > 0 && !isInboxNotifySuppressed()) {
-        toast.info("New mail received", {
-          id: MAIL_INBOX_TOAST_ID,
-          description:
-            added === 1
-              ? "Syncing your inbox…"
-              : `${added} new messages — syncing inbox…`,
-        });
+        const store = globalThis as GlobalStore;
+        const lastAt = store[LAST_NOTIFY_AT_KEY] ?? 0;
+        if (Date.now() - lastAt >= NOTIFY_COOLDOWN_MS) {
+          store[LAST_NOTIFY_AT_KEY] = Date.now();
+          toast.info("New mail received", {
+            id: MAIL_INBOX_TOAST_ID,
+            description:
+              added === 1
+                ? "Syncing your inbox…"
+                : `${added} new messages — syncing inbox…`,
+          });
+        }
         setCount((current) => current + added);
       }
     } catch {

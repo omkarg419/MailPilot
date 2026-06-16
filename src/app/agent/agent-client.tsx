@@ -7,6 +7,7 @@ import { AgentChat } from "@/components/agent/agent-chat";
 import { MailSidebar } from "@/components/mail/mail-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useInboxNewCount, useMailRealtimeConnection } from "@/hooks/use-mail-realtime";
+import { fetchAndSyncListThreads } from "@/lib/mail-list-cache";
 import { api } from "@/trpc/react";
 
 type AgentClientProps = {
@@ -24,10 +25,7 @@ export function AgentClient({
   const utils = api.useUtils();
 
   const fetchInboxThreads = useCallback(async () => {
-    const data = await utils.gmail.listThreads.fetch({
-      label: "INBOX",
-      refresh: true,
-    });
+    const data = await fetchAndSyncListThreads(utils.gmail.listThreads, "INBOX");
     return data.threads;
   }, [utils]);
 

@@ -29,6 +29,7 @@ import { LABEL_NAMES, type MailboxLabel, type ThreadSummary } from "./types";
 export type ThreadListProps = {
   threads: ThreadSummary[];
   isLoading: boolean;
+  isRefreshing?: boolean;
   selectedThreadId: string | null;
   searchInput: string;
   onSearchChange: (value: string) => void;
@@ -61,6 +62,7 @@ function ThreadListSkeleton() {
 export function ThreadList({
   threads,
   isLoading,
+  isRefreshing = false,
   selectedThreadId,
   searchInput,
   onSearchChange,
@@ -91,9 +93,14 @@ export function ThreadList({
             variant="outline"
             size="icon"
             onClick={onRefresh}
+            disabled={isRefreshing}
             title="Refresh from Gmail"
           >
-            <HugeiconsIcon icon={ArrowReloadHorizontalIcon} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={ArrowReloadHorizontalIcon}
+              strokeWidth={2}
+              className={isRefreshing ? "animate-spin" : undefined}
+            />
           </Button>
         </div>
       </div>
