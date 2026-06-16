@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUp02Icon, Loading03Icon } from "@hugeicons/core-free-icons";
+import { formatDistanceToNow } from "date-fns";
 
 import { AgentCalendarBlock } from "@/components/agent/agent-calendar-block";
 import { AgentComposeBlock } from "@/components/agent/agent-compose-block";
@@ -15,8 +16,10 @@ import { cn } from "@/lib/utils";
 import {
   buildPostBookingEmailPrompt,
   isCombinedMeetingEmailRequest,
+  isPostBookingFollowUpPrompt,
 } from "@/lib/agent-flow";
 import { formatCalendarEventRange } from "@/lib/calendar-display";
+import { api } from "@/trpc/react";
 
 import type {
   AgentChatContext,
@@ -233,6 +236,64 @@ function formatToolStatus(name: string, input: unknown): string {
   return "Working…";
 }
 
+type AgentUsageIndicatorProps = {
+  used: number;
+  limit: number;
+  remaining: number;
+  resetsAt: string | null;
+  limitReached: boolean;
+};
+
+function AgentUsageIndicator({
+  used,
+  limit,
+  remaining,
+  resetsAt,
+  limitReached,
+}: AgentUsageIndicatorProps) {
+  const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+
+  return (
+    <div className="mb-3 space-y-2">
+      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span>
+          {used} / {limit} agent requests used
+        </span>
+        {limitReached && resetsAt ? (
+          <span className="shrink-0 text-primary">
+            Resets{" "}
+            {formatDistanceToNow(new Date(resetsAt), { addSuffix: true })}
+          </span>
+        ) : remaining > 0 ? (
+          <span className="shrink-0">{remaining} remaining</span>
+        ) : null}
+      </div>
+      <div className="h-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            limitReached ? "bg-destructive" : "bg-primary",
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {limitReached ? (
+        <Alert className="border-primary/30 bg-primary/5 py-2">
+          <AlertTitle className="text-sm text-foreground">
+            Daily agent limit reached
+          </AlertTitle>
+          <AlertDescription className="text-xs text-muted-foreground">
+            You&apos;ve used all {limit} agent requests for the next 24 hours.
+            {resetsAt
+              ? ` Try again ${formatDistanceToNow(new Date(resetsAt), { addSuffix: true })}.`
+              : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
 type AgentInputAreaProps = {
   input: string;
   onInputChange: (value: string) => void;
@@ -240,6 +301,8 @@ type AgentInputAreaProps = {
   isStreaming: boolean;
   showSuggestions: boolean;
   onSuggestionClick: (prompt: string) => void;
+  limitReached: boolean;
+  usage: AgentUsageIndicatorProps | null;
 };
 
 function AgentInputArea({
@@ -249,15 +312,25 @@ function AgentInputArea({
   isStreaming,
   showSuggestions,
   onSuggestionClick,
+  limitReached,
+  usage,
 }: AgentInputAreaProps) {
+  const inputDisabled =
+    isStreaming || (limitReached && !isPostBookingFollowUpPrompt(input));
+
   return (
     <div className="mx-auto w-full max-w-[800px] px-4">
+      {usage ? <AgentUsageIndicator {...usage} /> : null}
       <form onSubmit={onSubmit} className="relative">
         <Textarea
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
-          placeholder="Ask MailPilot Agent…"
-          disabled={isStreaming}
+          placeholder={
+            limitReached
+              ? "Agent limit reached for the next 24 hours…"
+              : "Ask MailPilot Agent…"
+          }
+          disabled={inputDisabled}
           rows={1}
           className={cn(
             "min-h-12 max-h-40 resize-none rounded-full border-border bg-background py-3.5 pr-14 pl-4",
@@ -274,7 +347,7 @@ function AgentInputArea({
         <Button
           type="submit"
           size="icon-sm"
-          disabled={isStreaming || !input.trim()}
+          disabled={inputDisabled || !input.trim()}
           className="absolute right-2 bottom-2 size-9 rounded-full"
           aria-label="Send message"
         >
@@ -288,7 +361,7 @@ function AgentInputArea({
             <button
               key={label}
               type="button"
-              disabled={isStreaming}
+              disabled={isStreaming || limitReached}
               onClick={() => onSuggestionClick(prompt)}
               className={cn(
                 "rounded-full border border-border bg-muted/30 px-4 py-2 text-sm text-foreground",
@@ -319,6 +392,24 @@ export function AgentChat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
 
+  const { data: usageData, refetch: refetchUsage } =
+    api.agent.getUsage.useQuery();
+
+  const usageLimit = usageData?.limit ?? 5;
+  const usageUsed = usageData?.used ?? 0;
+  const usageRemaining = usageData?.remaining ?? usageLimit;
+  const limitReached = usageRemaining <= 0;
+
+  const usageIndicator: AgentUsageIndicatorProps | null = usageData
+    ? {
+        used: usageUsed,
+        limit: usageLimit,
+        remaining: usageRemaining,
+        resetsAt: usageData.resetsAt,
+        limitReached,
+      }
+    : null;
+
   const firstName = getFirstName(userName, userEmail);
   const isEmpty = messages.length === 0;
 
@@ -336,6 +427,14 @@ export function AgentChat({
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
+
+    const exemptFromLimit = isPostBookingFollowUpPrompt(trimmed);
+    if (!exemptFromLimit && limitReached) {
+      setError(
+        `You've used all ${usageLimit} agent requests for the next 24 hours.`,
+      );
+      return;
+    }
 
     setError(null);
     setToolStatus(null);
@@ -373,11 +472,31 @@ export function AgentChat({
       if (res.status === 401) {
         throw new Error("Please sign in to use the agent.");
       }
+      if (res.status === 429) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+          limit?: number;
+          used?: number;
+          resetsAt?: string | null;
+        } | null;
+        void refetchUsage();
+        const resetLabel = data?.resetsAt
+          ? formatDistanceToNow(new Date(data.resetsAt), { addSuffix: true })
+          : "later";
+        throw new Error(
+          data?.error ??
+            `Limit reached (${data?.used ?? usageLimit}/${data?.limit ?? usageLimit}). Resets ${resetLabel}.`,
+        );
+      }
       if (!res.ok || !res.body) {
         const data = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
         throw new Error(data?.error ?? `Request failed (${res.status})`);
+      }
+
+      if (!exemptFromLimit) {
+        void refetchUsage();
       }
 
       const reader = res.body.getReader();
@@ -471,6 +590,8 @@ export function AgentChat({
       isStreaming={isStreaming}
       showSuggestions={isEmpty}
       onSuggestionClick={(prompt) => void sendMessage(prompt)}
+      limitReached={limitReached}
+      usage={usageIndicator}
     />
   );
 

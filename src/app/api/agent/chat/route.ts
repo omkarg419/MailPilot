@@ -10,6 +10,10 @@ import {
   UI_AGENT_TOOLS,
 } from "@/server/agent/agent-tools";
 import {
+  AgentRateLimitError,
+  consumeAgentRequest,
+} from "@/server/agent/rate-limit";
+import {
   buildAgentSystemPrompt,
   EXECUTE_OPERATION_TOOL,
 } from "@/server/agent/system-prompt";
@@ -19,6 +23,7 @@ import {
   type AgentChatRequestBody,
   type AgentStreamEvent,
 } from "@/server/agent/types";
+import { isPostBookingFollowUpPrompt } from "@/lib/agent-flow";
 import { env } from "@/env";
 
 export const runtime = "nodejs";
@@ -46,6 +51,30 @@ export async function POST(req: Request) {
   }
 
   const tenantId = session.user.id;
+  const lastUserMessage =
+    [...body.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const exemptRateLimit = isPostBookingFollowUpPrompt(lastUserMessage);
+
+  if (!exemptRateLimit) {
+    try {
+      await consumeAgentRequest(tenantId);
+    } catch (err) {
+      if (err instanceof AgentRateLimitError) {
+        return Response.json(
+          {
+            error: "Agent rate limit reached",
+            limit: err.usage.limit,
+            used: err.usage.used,
+            remaining: err.usage.remaining,
+            resetsAt: err.usage.resetsAt?.toISOString() ?? null,
+          },
+          { status: 429 },
+        );
+      }
+      throw err;
+    }
+  }
+
   const system = await buildAgentSystemPrompt(tenantId, body.context);
   const conversation: Anthropic.MessageParam[] = toAnthropicMessages(body.messages);
 

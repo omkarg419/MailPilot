@@ -12,6 +12,16 @@ export function isCombinedMeetingEmailRequest(text: string): boolean {
   return hasMeeting && hasEmail;
 }
 
+/** Auto follow-up after calendar booking — exempt from agent rate limit. */
+export function isPostBookingFollowUpPrompt(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    trimmed.startsWith('I booked the meeting "') &&
+    trimmed.includes("Please draft the email to ") &&
+    trimmed.endsWith("as I originally requested.")
+  );
+}
+
 export function buildPostBookingEmailPrompt(event: {
   title: string;
   start: string;

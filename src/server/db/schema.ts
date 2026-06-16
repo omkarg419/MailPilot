@@ -35,8 +35,33 @@ export const users = createTable("user", (d) => ({
   image: d.varchar({ length: 255 }),
 }));
 
+export const agentUsage = createTable(
+  "agent_usage",
+  (d) => ({
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: d
+      .varchar({ length: 255 })
+      .notNull()
+      .references(() => users.id),
+    createdAt: d
+      .timestamp({ mode: "date", withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  }),
+  (t) => [index("agent_usage_user_created_idx").on(t.userId, t.createdAt)],
+);
+
+export const agentUsageRelations = relations(agentUsage, ({ one }) => ({
+  user: one(users, { fields: [agentUsage.userId], references: [users.id] }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
+  agentUsage: many(agentUsage),
 }));
 
 export const accounts = createTable(

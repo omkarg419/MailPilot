@@ -8,6 +8,13 @@
       "when": 1781261512135,
       "tag": "0000_curious_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781636641219,
+      "tag": "0001_wooden_paladin",
+      "breakpoints": true
     }
   ]
 }
