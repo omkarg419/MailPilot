@@ -359,6 +359,15 @@ export const gmailRouter = createTRPCRouter({
       const gmail = gmailFor(ctx.session.user.id);
       try {
         await gmail.api.threads.untrash({ id: input.threadId });
+        try {
+          await gmail.api.threads.modify({
+            id: input.threadId,
+            addLabelIds: ["INBOX"],
+            removeLabelIds: ["TRASH"],
+          });
+        } catch {
+          // untrash may have already updated labels
+        }
         await syncThreadMessagesInCache(gmail, input.threadId);
         return { success: true };
       } catch (err) {

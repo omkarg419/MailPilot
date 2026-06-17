@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { MailSidebar } from "@/components/mail/mail-sidebar";
@@ -11,6 +11,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import {
   forgetKnownInboxThread,
   isInboxRefreshSuppressed,
+  markKnownInboxThread,
   seedKnownInboxThreads,
   suppressInboxNotifyForMs,
   suppressInboxRefreshForMs,
@@ -20,7 +21,10 @@ import {
 import {
   fetchAndSyncListThreads,
   getListThreadsQueryInput,
+  prependThreadToInboxCache,
+  syncListsAfterRestore,
   syncListsAfterSend,
+  warmInboxAfterRestore,
 } from "@/lib/mail-list-cache";
 import { api } from "@/trpc/react";
 import { ComposeModal, type ComposeInitial } from "./compose-modal";
@@ -45,9 +49,19 @@ export function MailClient({
   const [hiddenThreadIds, setHiddenThreadIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [excludedFromTrashIds, setExcludedFromTrashIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const excludedFromTrashRef = useRef(excludedFromTrashIds);
+  excludedFromTrashRef.current = excludedFromTrashIds;
 
   const utils = api.useUtils();
   const bumpList = useCallback(() => setListTick((t) => t + 1), []);
+
+  const getPreserveInboxIds = useCallback(() => {
+    const ids = [...excludedFromTrashRef.current];
+    return ids.length > 0 ? { preserveThreadIds: ids } : undefined;
+  }, []);
 
   const listThreadsInput = useMemo(
     () => getListThreadsQueryInput(label, query),
@@ -62,7 +76,14 @@ export function MailClient({
   useEffect(() => {
     let cancelled = false;
     setIsListLoading(true);
-    void fetchAndSyncListThreads(utils.gmail.listThreads, label, query)
+    const preserveIds =
+      label === "INBOX" ? [...excludedFromTrashIds] : undefined;
+    void fetchAndSyncListThreads(
+      utils.gmail.listThreads,
+      label,
+      query,
+      preserveIds?.length ? { preserveThreadIds: preserveIds } : undefined,
+    )
       .then((data) => {
         if (cancelled) return;
         if (label === "INBOX" && !query) {
@@ -76,15 +97,17 @@ export function MailClient({
     return () => {
       cancelled = true;
     };
-  }, [label, query, utils, bumpList]);
+  }, [label, query, utils, bumpList, excludedFromTrashIds]);
 
   const fetchInboxThreads = useCallback(async () => {
     const data = await fetchAndSyncListThreads(
       utils.gmail.listThreads,
       "INBOX",
+      undefined,
+      getPreserveInboxIds(),
     );
     return data.threads;
-  }, [utils]);
+  }, [utils, getPreserveInboxIds]);
 
   const hideThread = useCallback((threadId: string) => {
     setHiddenThreadIds((prev) => {
@@ -110,14 +133,17 @@ export function MailClient({
     if (isInboxRefreshSuppressed()) return;
     void syncCurrentList();
     if (label !== "INBOX" || query) {
-      void fetchAndSyncListThreads(utils.gmail.listThreads, "INBOX").then(
-        (data) => {
-          seedKnownInboxThreads(data.threads.map((t) => t.threadId));
-          bumpList();
-        },
-      );
+      void fetchAndSyncListThreads(
+        utils.gmail.listThreads,
+        "INBOX",
+        undefined,
+        getPreserveInboxIds(),
+      ).then((data) => {
+        seedKnownInboxThreads(data.threads.map((t) => t.threadId));
+        bumpList();
+      });
     }
-  }, [syncCurrentList, label, query, utils, bumpList]);
+  }, [syncCurrentList, label, query, utils, bumpList, getPreserveInboxIds]);
 
   useMailRealtimeInbox(refreshLive);
   const inboxNewCount = useInboxNewCount(
@@ -215,12 +241,21 @@ export function MailClient({
   });
   const untrash = api.gmail.untrash.useMutation({
     onMutate: async ({ threadId }) => {
-      suppressInboxRefreshForMs(8_000);
-      hideThread(threadId);
+      suppressInboxRefreshForMs(10_000);
+      suppressInboxNotifyForMs(15_000);
+      markKnownInboxThread(threadId);
+      setExcludedFromTrashIds((prev) => {
+        const next = new Set(prev);
+        next.add(threadId);
+        return next;
+      });
 
       await utils.gmail.listThreads.cancel(listThreadsInput).catch(() => undefined);
 
       const previous = utils.gmail.listThreads.getData(listThreadsInput);
+      const restoredThread = previous?.threads.find(
+        (thread) => thread.threadId === threadId,
+      );
 
       utils.gmail.listThreads.setData(listThreadsInput, (old) => {
         if (!old) return old;
@@ -230,7 +265,12 @@ export function MailClient({
         };
       });
 
+      if (restoredThread) {
+        prependThreadToInboxCache(utils.gmail.listThreads, restoredThread);
+      }
+
       setSelectedThreadId(null);
+      bumpList();
 
       return { previous, threadId };
     },
@@ -238,12 +278,36 @@ export function MailClient({
       if (context?.previous) {
         utils.gmail.listThreads.setData(listThreadsInput, context.previous);
       }
-      unhideThread(threadId);
+      setExcludedFromTrashIds((prev) => {
+        const next = new Set(prev);
+        next.delete(threadId);
+        return next;
+      });
+      bumpList();
     },
     onSettled: async (_data, error, { threadId }) => {
       if (error) return;
-      await syncCurrentList();
-      unhideThread(threadId);
+      await syncListsAfterRestore(
+        utils.gmail.listThreads,
+        label,
+        query,
+        threadId,
+      );
+      void warmInboxAfterRestore(utils.gmail.listThreads, threadId).then(() => {
+        const inbox = utils.gmail.listThreads.getData(
+          getListThreadsQueryInput("INBOX"),
+        );
+        if (inbox?.threads.some((t) => t.threadId === threadId)) {
+          setExcludedFromTrashIds((prev) => {
+            if (!prev.has(threadId)) return prev;
+            const next = new Set(prev);
+            next.delete(threadId);
+            return next;
+          });
+        }
+        bumpList();
+      });
+      bumpList();
     },
   });
 
@@ -258,13 +322,24 @@ export function MailClient({
 
   const threads = useMemo(() => {
     void listTick;
-    const raw =
+    let raw =
       utils.gmail.listThreads.getData(listThreadsInput)?.threads ??
       threadsQuery.data?.threads ??
       [];
+    if (label === "TRASH" && excludedFromTrashIds.size > 0) {
+      raw = raw.filter((thread) => !excludedFromTrashIds.has(thread.threadId));
+    }
     if (hiddenThreadIds.size === 0) return raw;
     return raw.filter((thread) => !hiddenThreadIds.has(thread.threadId));
-  }, [utils, listThreadsInput, listTick, threadsQuery.data, hiddenThreadIds]);
+  }, [
+    utils,
+    listThreadsInput,
+    listTick,
+    threadsQuery.data,
+    hiddenThreadIds,
+    excludedFromTrashIds,
+    label,
+  ]);
 
   const selectThread = (threadId: string, unread: boolean) => {
     setSelectedThreadId(threadId);
@@ -288,8 +363,24 @@ export function MailClient({
   };
 
   const onLabelChange = (nextLabel: MailboxLabel) => {
+    if (label === "TRASH" && nextLabel !== "TRASH") {
+      setExcludedFromTrashIds(new Set());
+    }
     setLabel(nextLabel);
     setSelectedThreadId(null);
+    if (nextLabel === "INBOX" && !query) {
+      void fetchAndSyncListThreads(
+        utils.gmail.listThreads,
+        "INBOX",
+        undefined,
+        excludedFromTrashIds.size > 0
+          ? { preserveThreadIds: [...excludedFromTrashIds] }
+          : undefined,
+      ).then((data) => {
+        seedKnownInboxThreads(data.threads.map((t) => t.threadId));
+        bumpList();
+      });
+    }
   };
 
   return (

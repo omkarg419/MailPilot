@@ -95,6 +95,12 @@ export function forgetKnownInboxThread(threadId: string): void {
   getKnownThreadIds().delete(threadId);
 }
 
+/** Prevent restore/untrash from triggering a "new mail" toast. */
+export function markKnownInboxThread(threadId: string): void {
+  getKnownThreadIds().add(threadId);
+  (globalThis as GlobalStore)[INBOX_SEEDED_KEY] = true;
+}
+
 function isInboxNotifySuppressed(): boolean {
   return Date.now() < ((globalThis as GlobalStore)[SUPPRESS_UNTIL_KEY] ?? 0);
 }
