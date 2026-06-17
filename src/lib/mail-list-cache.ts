@@ -54,7 +54,7 @@ export async function fetchAndSyncListThreads(
       });
 
       const preserveIds = options?.preserveThreadIds ?? [];
-      if (preserveIds.length > 0 && label === "INBOX") {
+      if (preserveIds.length > 0) {
         const prior = cached ?? listThreads.getData(cacheInput);
         const toPreserve =
           prior?.threads.filter(
@@ -104,6 +104,43 @@ export function prependThreadToInboxCache(
   });
 }
 
+/** Optimistically show a trashed thread in Trash before Gmail indexing catches up. */
+export function prependThreadToTrashCache(
+  listThreads: ListThreadsUtils,
+  thread: ThreadSummary,
+) {
+  const trashInput = getListThreadsQueryInput("TRASH");
+  listThreads.setData(trashInput, (old) => {
+    const threads = old?.threads ?? [];
+    if (threads.some((t) => t.threadId === thread.threadId)) return old;
+    return {
+      threads: [thread, ...threads],
+      nextPageToken: old?.nextPageToken,
+      cached: false,
+    };
+  });
+}
+
+/** Staggered Trash pulls — Gmail often lags after trash. */
+export function warmTrashAfterDelete(
+  listThreads: ListThreadsUtils,
+  trashedThreadId: string,
+  delaysMs: readonly number[] = [2_000, 5_000, 10_000],
+): Promise<void[]> {
+  return Promise.all(
+    delaysMs.map(
+      (delay) =>
+        new Promise<void>((resolve) => {
+          setTimeout(() => {
+            void fetchAndSyncListThreads(listThreads, "TRASH", undefined, {
+              preserveThreadIds: [trashedThreadId],
+            }).finally(() => resolve());
+          }, delay);
+        }),
+    ),
+  );
+}
+
 /** Staggered Inbox pulls — Gmail often lags after untrash; keep optimistic row until API catches up. */
 export function warmInboxAfterRestore(
   listThreads: ListThreadsUtils,
@@ -122,6 +159,33 @@ export function warmInboxAfterRestore(
         }),
     ),
   );
+}
+
+/** After trash: strip from Inbox cache; Trash is already optimistic. */
+export async function syncListsAfterTrash(
+  listThreads: ListThreadsUtils,
+  currentLabel: MailboxLabel,
+  currentQuery?: string,
+  trashedThreadId?: string,
+) {
+  if (trashedThreadId) {
+    const inboxInput = getListThreadsQueryInput("INBOX");
+    const inbox = listThreads.getData(inboxInput);
+    if (inbox) {
+      listThreads.setData(inboxInput, {
+        ...inbox,
+        threads: inbox.threads.filter((t) => t.threadId !== trashedThreadId),
+      });
+    }
+  }
+
+  if (currentLabel === "TRASH" && trashedThreadId) {
+    return;
+  }
+
+  if (currentLabel !== "INBOX") {
+    await fetchAndSyncListThreads(listThreads, currentLabel, currentQuery);
+  }
 }
 
 /** After restore from Trash: update Trash cache only — Inbox is already optimistic. */

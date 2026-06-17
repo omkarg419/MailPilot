@@ -22,9 +22,12 @@ import {
   fetchAndSyncListThreads,
   getListThreadsQueryInput,
   prependThreadToInboxCache,
+  prependThreadToTrashCache,
   syncListsAfterRestore,
   syncListsAfterSend,
+  syncListsAfterTrash,
   warmInboxAfterRestore,
+  warmTrashAfterDelete,
 } from "@/lib/mail-list-cache";
 import { api } from "@/trpc/react";
 import { ComposeModal, type ComposeInitial } from "./compose-modal";
@@ -52,16 +55,33 @@ export function MailClient({
   const [excludedFromTrashIds, setExcludedFromTrashIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [pendingTrashThreadIds, setPendingTrashThreadIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const excludedFromTrashRef = useRef(excludedFromTrashIds);
   excludedFromTrashRef.current = excludedFromTrashIds;
+  const pendingTrashRef = useRef(pendingTrashThreadIds);
+  pendingTrashRef.current = pendingTrashThreadIds;
 
   const utils = api.useUtils();
   const bumpList = useCallback(() => setListTick((t) => t + 1), []);
 
-  const getPreserveInboxIds = useCallback(() => {
-    const ids = [...excludedFromTrashRef.current];
-    return ids.length > 0 ? { preserveThreadIds: ids } : undefined;
+  const getPreserveListIds = useCallback((forLabel: MailboxLabel) => {
+    if (forLabel === "INBOX") {
+      const ids = [...excludedFromTrashRef.current];
+      return ids.length > 0 ? { preserveThreadIds: ids } : undefined;
+    }
+    if (forLabel === "TRASH") {
+      const ids = [...pendingTrashRef.current];
+      return ids.length > 0 ? { preserveThreadIds: ids } : undefined;
+    }
+    return undefined;
   }, []);
+
+  const getPreserveInboxIds = useCallback(
+    () => getPreserveListIds("INBOX"),
+    [getPreserveListIds],
+  );
 
   const listThreadsInput = useMemo(
     () => getListThreadsQueryInput(label, query),
@@ -76,13 +96,12 @@ export function MailClient({
   useEffect(() => {
     let cancelled = false;
     setIsListLoading(true);
-    const preserveIds =
-      label === "INBOX" ? [...excludedFromTrashIds] : undefined;
+    const preserve = getPreserveListIds(label);
     void fetchAndSyncListThreads(
       utils.gmail.listThreads,
       label,
       query,
-      preserveIds?.length ? { preserveThreadIds: preserveIds } : undefined,
+      preserve,
     )
       .then((data) => {
         if (cancelled) return;
@@ -97,7 +116,7 @@ export function MailClient({
     return () => {
       cancelled = true;
     };
-  }, [label, query, utils, bumpList, excludedFromTrashIds]);
+  }, [label, query, utils, bumpList, getPreserveListIds]);
 
   const fetchInboxThreads = useCallback(async () => {
     const data = await fetchAndSyncListThreads(
@@ -206,10 +225,18 @@ export function MailClient({
       suppressInboxNotifyForMs(10_000);
       forgetKnownInboxThread(threadId);
       hideThread(threadId);
+      setPendingTrashThreadIds((prev) => {
+        const next = new Set(prev);
+        next.add(threadId);
+        return next;
+      });
 
       await utils.gmail.listThreads.cancel(listThreadsInput).catch(() => undefined);
 
       const previous = utils.gmail.listThreads.getData(listThreadsInput);
+      const trashedThread = previous?.threads.find(
+        (thread) => thread.threadId === threadId,
+      );
 
       utils.gmail.listThreads.setData(listThreadsInput, (old) => {
         if (!old) return old;
@@ -219,7 +246,12 @@ export function MailClient({
         };
       });
 
+      if (trashedThread) {
+        prependThreadToTrashCache(utils.gmail.listThreads, trashedThread);
+      }
+
       setSelectedThreadId(null);
+      bumpList();
 
       return { previous, threadId };
     },
@@ -228,15 +260,45 @@ export function MailClient({
         utils.gmail.listThreads.setData(listThreadsInput, context.previous);
       }
       unhideThread(threadId);
+      setPendingTrashThreadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(threadId);
+        return next;
+      });
+      const trashInput = getListThreadsQueryInput("TRASH");
+      const cached = utils.gmail.listThreads.getData(trashInput);
+      if (cached) {
+        utils.gmail.listThreads.setData(trashInput, {
+          ...cached,
+          threads: cached.threads.filter((t) => t.threadId !== threadId),
+        });
+      }
+      bumpList();
     },
     onSettled: async (_data, error, { threadId }) => {
       if (error) return;
-      await syncCurrentList();
-      const data = utils.gmail.listThreads.getData(listThreadsInput);
-      const stillVisible = data?.threads.some((t) => t.threadId === threadId);
-      if (!stillVisible) {
-        unhideThread(threadId);
-      }
+      unhideThread(threadId);
+      await syncListsAfterTrash(
+        utils.gmail.listThreads,
+        label,
+        query,
+        threadId,
+      );
+      void warmTrashAfterDelete(utils.gmail.listThreads, threadId).then(() => {
+        const trash = utils.gmail.listThreads.getData(
+          getListThreadsQueryInput("TRASH"),
+        );
+        if (trash?.threads.some((t) => t.threadId === threadId)) {
+          setPendingTrashThreadIds((prev) => {
+            if (!prev.has(threadId)) return prev;
+            const next = new Set(prev);
+            next.delete(threadId);
+            return next;
+          });
+        }
+        bumpList();
+      });
+      bumpList();
     },
   });
   const untrash = api.gmail.untrash.useMutation({
@@ -329,8 +391,10 @@ export function MailClient({
     if (label === "TRASH" && excludedFromTrashIds.size > 0) {
       raw = raw.filter((thread) => !excludedFromTrashIds.has(thread.threadId));
     }
-    if (hiddenThreadIds.size === 0) return raw;
-    return raw.filter((thread) => !hiddenThreadIds.has(thread.threadId));
+    if (label === "INBOX" && hiddenThreadIds.size > 0) {
+      raw = raw.filter((thread) => !hiddenThreadIds.has(thread.threadId));
+    }
+    return raw;
   }, [
     utils,
     listThreadsInput,
