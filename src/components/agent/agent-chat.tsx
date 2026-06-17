@@ -421,20 +421,19 @@ export function AgentChat({
   const usageUsed = usageData?.used ?? 0;
   const usageRemaining = usageData?.remaining ?? usageLimit;
   const limitReached = usageRemaining <= 0;
-  const accessDenied = usageData !== undefined && usageData.allowed === false;
+  const accessDenied = usageData?.allowed === false;
 
-  const usageIndicator: AgentUsageIndicatorProps | null =
-    usageData && usageData.allowed
-      ? {
-          used: usageUsed,
-          limit: usageLimit,
-          remaining: usageRemaining,
-          resetsAt: usageData.resetsAt
-            ? new Date(usageData.resetsAt).toISOString()
-            : null,
-          limitReached,
-        }
-      : null;
+  const usageIndicator: AgentUsageIndicatorProps | null = usageData?.allowed
+    ? {
+        used: usageUsed,
+        limit: usageLimit,
+        remaining: usageRemaining,
+        resetsAt: usageData.resetsAt
+          ? new Date(usageData.resetsAt).toISOString()
+          : null,
+        limitReached,
+      }
+    : null;
 
   const firstName = getFirstName(userName, userEmail);
   const isEmpty = messages.length === 0;
