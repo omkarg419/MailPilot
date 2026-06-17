@@ -11,6 +11,8 @@ const EMPTY_LIST: ListThreadsResult = {
   cached: false,
 };
 
+const inflightListThreads = new Map<string, Promise<ListThreadsResult>>();
+
 /** TanStack Query cache key — must match `useQuery` input (omit `refresh`). */
 export type ListThreadsQueryInput = {
   label: MailboxLabel;
@@ -37,18 +39,29 @@ export async function fetchAndSyncListThreads(
   q?: string,
 ): Promise<ListThreadsResult> {
   const cacheInput = getListThreadsQueryInput(label, q);
+  const inflightKey = `${cacheInput.label}:${cacheInput.q ?? ""}`;
+  const existing = inflightListThreads.get(inflightKey);
+  if (existing) return existing;
+
   const cached = listThreads.getData(cacheInput);
 
-  try {
-    const fresh = await listThreads.fetch({
-      ...cacheInput,
-      refresh: true,
-    });
-    listThreads.setData(cacheInput, fresh);
-    return fresh;
-  } catch {
-    return cached ?? EMPTY_LIST;
-  }
+  const request = (async () => {
+    try {
+      const fresh = await listThreads.fetch({
+        ...cacheInput,
+        refresh: true,
+      });
+      listThreads.setData(cacheInput, fresh);
+      return fresh;
+    } catch {
+      return cached ?? EMPTY_LIST;
+    } finally {
+      inflightListThreads.delete(inflightKey);
+    }
+  })();
+
+  inflightListThreads.set(inflightKey, request);
+  return request;
 }
 
 /** After send/draft, refresh Sent + Inbox (and the active label) without a full reload. */

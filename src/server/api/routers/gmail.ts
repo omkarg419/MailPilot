@@ -66,13 +66,24 @@ async function syncThreadMessagesInCache(
   gmail: GmailClient,
   threadId: string,
 ): Promise<void> {
-  const db = gmail.db?.messages;
-  if (!db) return;
-
   const thread = await gmail.api.threads.get({
     id: threadId,
     format: "full",
   });
+  await upsertApiThreadToCache(gmail, thread);
+}
+
+type ApiThread = Awaited<ReturnType<GmailClient["api"]["threads"]["get"]>>;
+
+async function upsertApiThreadToCache(
+  gmail: GmailClient,
+  thread: ApiThread,
+): Promise<void> {
+  const db = gmail.db?.messages;
+  if (!db) return;
+
+  const threadId = thread.id ?? thread.messages?.[0]?.threadId;
+  if (!threadId) return;
 
   for (const message of thread.messages ?? []) {
     if (!message.id) continue;
@@ -224,6 +235,14 @@ export const gmailRouter = createTRPCRouter({
             return summarizeApiThread(result.value);
           })
           .filter((s): s is ThreadSummary => s !== null);
+
+        // Keep Corsair entity cache in sync so `refresh: false` paths stay current.
+        await Promise.allSettled(
+          detailed.flatMap((result) => {
+            if (result.status !== "fulfilled" || !result.value) return [];
+            return [upsertApiThreadToCache(gmail, result.value)];
+          }),
+        );
 
         return {
           threads: summaries,

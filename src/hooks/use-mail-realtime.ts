@@ -3,17 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-/** Staggered refreshes — Gmail indexing can lag several seconds behind push. */
-const INBOX_REFRESH_DELAYS_MS = [0, 2_000, 5_000, 10_000] as const;
-const INBOX_POLL_INTERVAL_MS = 30_000;
+/** One delayed refresh after push; follow-up catches Gmail indexing lag. */
+const INBOX_REFRESH_DELAYS_MS = [1_500, 5_000] as const;
+/** Min gap between inbox refresh bursts — avoids webhook spam. */
+const INBOX_REFRESH_COOLDOWN_MS = 5_000;
 const CALENDAR_REFRESH_DELAYS_MS = [0, 2_000] as const;
 
 const MAIL_INBOX_TOAST_ID = "mail-inbox-sync";
 
 const SHARED_KEY = "__mailPilotMailRealtimeShared__" as const;
 const SUPPRESS_UNTIL_KEY = "__mailPilotSuppressInboxNotifyUntil__" as const;
+const SUPPRESS_REFRESH_UNTIL_KEY = "__mailPilotSuppressInboxRefreshUntil__" as const;
 const KNOWN_THREADS_KEY = "__mailPilotKnownInboxThreads__" as const;
 const LAST_NOTIFY_AT_KEY = "__mailPilotLastInboxNotifyAt__" as const;
+const LAST_INBOX_REFRESH_AT_KEY = "__mailPilotLastInboxRefreshAt__" as const;
+const PENDING_INBOX_REFRESH_KEY = "__mailPilotPendingInboxRefresh__" as const;
+const INBOX_SEEDED_KEY = "__mailPilotInboxSeeded__" as const;
 const NOTIFY_COOLDOWN_MS = 8_000;
 
 /** Background inbox refresh (silent — no toast from SSE). */
@@ -30,8 +35,12 @@ type SharedConnection = {
 type GlobalStore = typeof globalThis & {
   [SHARED_KEY]?: SharedConnection;
   [SUPPRESS_UNTIL_KEY]?: number;
+  [SUPPRESS_REFRESH_UNTIL_KEY]?: number;
   [KNOWN_THREADS_KEY]?: Set<string>;
   [LAST_NOTIFY_AT_KEY]?: number;
+  [LAST_INBOX_REFRESH_AT_KEY]?: number;
+  [PENDING_INBOX_REFRESH_KEY]?: boolean;
+  [INBOX_SEEDED_KEY]?: boolean;
 };
 
 function getSharedConnection(): SharedConnection | null {
@@ -55,8 +64,46 @@ export function suppressInboxNotifyForMs(ms: number): void {
   store[SUPPRESS_UNTIL_KEY] = Math.max(store[SUPPRESS_UNTIL_KEY] ?? 0, until);
 }
 
+function isInboxSeeded(): boolean {
+  return (globalThis as GlobalStore)[INBOX_SEEDED_KEY] ?? false;
+}
+
+/** Skip list refresh after trash/send (Gmail webhooks still fire). */
+export function suppressInboxRefreshForMs(ms: number): void {
+  const store = globalThis as GlobalStore;
+  const until = Date.now() + ms;
+  store[SUPPRESS_REFRESH_UNTIL_KEY] = Math.max(
+    store[SUPPRESS_REFRESH_UNTIL_KEY] ?? 0,
+    until,
+  );
+}
+
+export function isInboxRefreshSuppressed(): boolean {
+  return (
+    Date.now() < ((globalThis as GlobalStore)[SUPPRESS_REFRESH_UNTIL_KEY] ?? 0)
+  );
+}
+
+/** Call after loading the inbox list so webhooks only toast on genuinely new threads. */
+export function seedKnownInboxThreads(threadIds: Iterable<string>): void {
+  const known = getKnownThreadIds();
+  for (const id of threadIds) known.add(id);
+  (globalThis as GlobalStore)[INBOX_SEEDED_KEY] = true;
+}
+
+export function forgetKnownInboxThread(threadId: string): void {
+  getKnownThreadIds().delete(threadId);
+}
+
 function isInboxNotifySuppressed(): boolean {
   return Date.now() < ((globalThis as GlobalStore)[SUPPRESS_UNTIL_KEY] ?? 0);
+}
+
+function fireInboxRefresh() {
+  if (isInboxRefreshSuppressed()) return;
+  (globalThis as GlobalStore)[LAST_INBOX_REFRESH_AT_KEY] = Date.now();
+  (globalThis as GlobalStore)[PENDING_INBOX_REFRESH_KEY] = undefined;
+  window.dispatchEvent(new Event(MAIL_INBOX_CHANGED_EVENT));
 }
 
 function dispatchRefreshSignals(
@@ -71,6 +118,39 @@ function dispatchRefreshSignals(
       }, delay),
     );
   }
+}
+
+function scheduleThrottledInboxRefresh(timers: number[]) {
+  const store = globalThis as GlobalStore;
+  const now = Date.now();
+  const lastAt = store[LAST_INBOX_REFRESH_AT_KEY] ?? 0;
+  const elapsed = now - lastAt;
+
+  for (const id of timers) window.clearTimeout(id);
+  timers.length = 0;
+
+  if (elapsed >= INBOX_REFRESH_COOLDOWN_MS) {
+    for (const delay of INBOX_REFRESH_DELAYS_MS) {
+      timers.push(window.setTimeout(fireInboxRefresh, delay));
+    }
+    return;
+  }
+
+  if (store[PENDING_INBOX_REFRESH_KEY]) return;
+
+  store[PENDING_INBOX_REFRESH_KEY] = true;
+  const wait = INBOX_REFRESH_COOLDOWN_MS - elapsed;
+  timers.push(
+    window.setTimeout(() => {
+      fireInboxRefresh();
+      timers.push(
+        window.setTimeout(
+          fireInboxRefresh,
+          INBOX_REFRESH_DELAYS_MS[1] - INBOX_REFRESH_DELAYS_MS[0],
+        ),
+      );
+    }, wait + INBOX_REFRESH_DELAYS_MS[0]),
+  );
 }
 
 function clearConnectionTimers(connection: SharedConnection) {
@@ -88,13 +168,7 @@ function attachSharedHandlers(connection: SharedConnection) {
     try {
       const data = JSON.parse(event.data) as { type?: string };
       if (data.type === "inbox_changed") {
-        for (const id of current.inboxTimers) window.clearTimeout(id);
-        current.inboxTimers.length = 0;
-        dispatchRefreshSignals(
-          MAIL_INBOX_CHANGED_EVENT,
-          INBOX_REFRESH_DELAYS_MS,
-          current.inboxTimers,
-        );
+        scheduleThrottledInboxRefresh(current.inboxTimers);
       } else if (data.type === "calendar_changed") {
         for (const id of current.calendarTimers) window.clearTimeout(id);
         current.calendarTimers.length = 0;
@@ -157,15 +231,7 @@ function releaseSharedConnection() {
 export function useMailRealtimeConnection() {
   useEffect(() => {
     acquireSharedConnection();
-
-    const poll = window.setInterval(() => {
-      window.dispatchEvent(new Event(MAIL_INBOX_CHANGED_EVENT));
-    }, INBOX_POLL_INTERVAL_MS);
-
-    return () => {
-      window.clearInterval(poll);
-      releaseSharedConnection();
-    };
+    return () => releaseSharedConnection();
   }, []);
 }
 
@@ -211,19 +277,17 @@ export function useInboxNewCount(
   fetchRef.current = fetchInboxThreads;
   const isViewingRef = useRef(isViewingInbox);
   isViewingRef.current = isViewingInbox;
-  const seededRef = useRef(false);
 
   const checkForNewMail = useCallback(async () => {
-    if (isViewingRef.current) return;
+    if (isInboxRefreshSuppressed()) return;
 
     try {
       const threads = await fetchRef.current();
       const known = getKnownThreadIds();
       const ids = threads.map((t) => t.threadId);
 
-      if (!seededRef.current) {
-        for (const id of ids) known.add(id);
-        seededRef.current = true;
+      if (!isInboxSeeded()) {
+        seedKnownInboxThreads(ids);
         return;
       }
 
@@ -246,7 +310,9 @@ export function useInboxNewCount(
                 : `${added} new messages — syncing inbox…`,
           });
         }
-        setCount((current) => current + added);
+        if (!isViewingRef.current) {
+          setCount((current) => current + added);
+        }
       }
     } catch {
       // ignore fetch errors during background sync
@@ -258,12 +324,10 @@ export function useInboxNewCount(
   useEffect(() => {
     if (isViewingInbox) {
       setCount(0);
-      seededRef.current = false;
-      getKnownThreadIds().clear();
     }
   }, [isViewingInbox]);
 
-  // Seed known threads on mount so the first webhook doesn't false-positive.
+  // Seed when on Agent/Calendar so the first webhook doesn't false-positive.
   useEffect(() => {
     if (isViewingInbox) return;
     void checkForNewMail();
