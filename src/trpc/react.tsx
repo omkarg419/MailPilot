@@ -48,7 +48,10 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
           enabled: (op) => {
             if (op.direction === "down" && op.result instanceof Error) {
               // Background inbox sync uses utils.fetch; avoid noisy console errors.
-              if (op.path === "gmail.listThreads") {
+              if (
+                "path" in op &&
+                op.path === "gmail.listThreads"
+              ) {
                 return false;
               }
               if (op.result instanceof TRPCClientError) {

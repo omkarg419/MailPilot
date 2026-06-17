@@ -8,17 +8,24 @@ import {
   SearchIcon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
+import type { ComponentType } from "react";
 
 import { LandingSection } from "@/components/landing/landing-section";
 import { useInView } from "@/hooks/use-in-view";
 import { cn } from "@/lib/utils";
 
-const FLOW_STEPS = [
+type WorkflowStep = {
+  label: string;
+  icon: typeof SearchIcon;
+  final?: boolean;
+};
+
+const FLOW_STEPS: WorkflowStep[] = [
   { label: "Check availability", icon: SearchIcon },
   { label: "Create calendar event", icon: Calendar03Icon },
   { label: "Draft email", icon: MailSend01Icon },
   { label: "Ready to send", icon: Tick02Icon, final: true },
-] as const;
+];
 
 const workflowCardClass = cn(
   "w-full rounded-[0.75rem] border border-border/80 bg-card/95 px-5 py-4",
@@ -134,12 +141,14 @@ function ConnectorThirdToFourth({ active }: { active: boolean }) {
   );
 }
 
-const CONNECTORS = [
+type ConnectorComponent = ComponentType<{ active: boolean }>;
+
+const CONNECTORS: ConnectorComponent[] = [
   ConnectorYouToFirst,
   ConnectorFirstToSecond,
   ConnectorSecondToThird,
   ConnectorThirdToFourth,
-] as const;
+];
 
 export function LandingWorkflow() {
   const { ref, inView } = useInView<HTMLDivElement>({ threshold: 0.2 });
@@ -199,6 +208,7 @@ export function LandingWorkflow() {
 
           {FLOW_STEPS.map((step, index) => {
             const Connector = CONNECTORS[index];
+            if (!Connector) return null;
             return (
               <div key={step.label}>
                 <Connector active={inView} />
