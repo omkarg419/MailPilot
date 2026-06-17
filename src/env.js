@@ -16,6 +16,10 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     ANTHROPIC_API_KEY: z.string().min(1),
     ANTHROPIC_GUARD_MODEL: z.string().optional(),
+    AGENT_ADMIN_EMAIL:
+      process.env.NODE_ENV === "production"
+        ? z.string().email()
+        : z.string().email().optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -41,6 +45,7 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     ANTHROPIC_GUARD_MODEL: process.env.ANTHROPIC_GUARD_MODEL,
+    AGENT_ADMIN_EMAIL: process.env.AGENT_ADMIN_EMAIL,
     NODE_ENV: process.env.NODE_ENV,
   },
   /**

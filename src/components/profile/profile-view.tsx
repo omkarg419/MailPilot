@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MailSidebar } from "@/components/mail/mail-sidebar";
 import { initials } from "@/components/mail/mail-utils";
+import { ProfileAgentAccessPanel } from "@/components/profile/profile-agent-access";
 import { ProfileCalendarWatchButton } from "@/components/profile/profile-calendar-watch-button";
 import { ProfileConnectedServiceRow } from "@/components/profile/profile-connected-service-row";
 import { ProfileGmailWatchButton } from "@/components/profile/profile-gmail-watch-button";
@@ -168,6 +169,8 @@ export function ProfileView({
               />
             </div>
           </section>
+
+          <ProfileAgentAccessPanel />
         </div>
       </div>
     </SidebarProvider>

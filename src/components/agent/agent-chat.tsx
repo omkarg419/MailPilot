@@ -294,6 +294,21 @@ function AgentUsageIndicator({
   );
 }
 
+function AgentAccessDeniedAlert() {
+  return (
+    <Alert className="mb-3 border-primary/30 bg-primary/5 py-2">
+      <AlertTitle className="text-sm text-foreground">
+        Agent access is invite-only
+      </AlertTitle>
+      <AlertDescription className="text-xs text-muted-foreground">
+        Mail and Calendar are available to everyone. The AI agent is enabled only
+        for invited accounts — ask the MailPilot admin to grant access to{" "}
+        <span className="font-medium text-foreground">your signed-in email</span>.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 type AgentInputAreaProps = {
   input: string;
   onInputChange: (value: string) => void;
@@ -302,6 +317,7 @@ type AgentInputAreaProps = {
   showSuggestions: boolean;
   onSuggestionClick: (prompt: string) => void;
   limitReached: boolean;
+  accessDenied: boolean;
   usage: AgentUsageIndicatorProps | null;
 };
 
@@ -313,22 +329,28 @@ function AgentInputArea({
   showSuggestions,
   onSuggestionClick,
   limitReached,
+  accessDenied,
   usage,
 }: AgentInputAreaProps) {
   const inputDisabled =
-    isStreaming || (limitReached && !isPostBookingFollowUpPrompt(input));
+    accessDenied ||
+    isStreaming ||
+    (limitReached && !isPostBookingFollowUpPrompt(input));
 
   return (
     <div className="mx-auto w-full max-w-[800px] px-4">
-      {usage ? <AgentUsageIndicator {...usage} /> : null}
+      {accessDenied ? <AgentAccessDeniedAlert /> : null}
+      {usage && !accessDenied ? <AgentUsageIndicator {...usage} /> : null}
       <form onSubmit={onSubmit} className="relative">
         <Textarea
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
           placeholder={
-            limitReached
-              ? "Agent limit reached for the next 24 hours…"
-              : "Ask about inbox, emails, or calendar…"
+            accessDenied
+              ? "Agent access not enabled for this account…"
+              : limitReached
+                ? "Agent limit reached for the next 24 hours…"
+                : "Ask about inbox, emails, or calendar…"
           }
           disabled={inputDisabled}
           rows={1}
@@ -361,7 +383,7 @@ function AgentInputArea({
             <button
               key={label}
               type="button"
-              disabled={isStreaming || limitReached}
+              disabled={isStreaming || limitReached || accessDenied}
               onClick={() => onSuggestionClick(prompt)}
               className={cn(
                 "rounded-full border border-border bg-muted/30 px-4 py-2 text-sm text-foreground",
@@ -399,16 +421,20 @@ export function AgentChat({
   const usageUsed = usageData?.used ?? 0;
   const usageRemaining = usageData?.remaining ?? usageLimit;
   const limitReached = usageRemaining <= 0;
+  const accessDenied = usageData !== undefined && usageData.allowed === false;
 
-  const usageIndicator: AgentUsageIndicatorProps | null = usageData
-    ? {
-        used: usageUsed,
-        limit: usageLimit,
-        remaining: usageRemaining,
-        resetsAt: usageData.resetsAt,
-        limitReached,
-      }
-    : null;
+  const usageIndicator: AgentUsageIndicatorProps | null =
+    usageData && usageData.allowed
+      ? {
+          used: usageUsed,
+          limit: usageLimit,
+          remaining: usageRemaining,
+          resetsAt: usageData.resetsAt
+            ? new Date(usageData.resetsAt).toISOString()
+            : null,
+          limitReached,
+        }
+      : null;
 
   const firstName = getFirstName(userName, userEmail);
   const isEmpty = messages.length === 0;
@@ -426,7 +452,7 @@ export function AgentChat({
 
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || isStreaming) return;
+    if (!trimmed || isStreaming || accessDenied) return;
 
     const exemptFromLimit = isPostBookingFollowUpPrompt(trimmed);
     if (!exemptFromLimit && limitReached) {
@@ -471,6 +497,17 @@ export function AgentChat({
 
       if (res.status === 401) {
         throw new Error("Please sign in to use the agent.");
+      }
+      if (res.status === 403) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+          code?: string;
+        } | null;
+        void refetchUsage();
+        throw new Error(
+          data?.error ??
+            "Agent access is invite-only. Ask an admin to enable it for your account.",
+        );
       }
       if (res.status === 429) {
         const data = (await res.json().catch(() => null)) as {
@@ -612,6 +649,7 @@ export function AgentChat({
       showSuggestions={isEmpty}
       onSuggestionClick={(prompt) => void sendMessage(prompt)}
       limitReached={limitReached}
+      accessDenied={accessDenied}
       usage={usageIndicator}
     />
   );
@@ -625,7 +663,9 @@ export function AgentChat({
               Hey there, {firstName}
             </h1>
             <p className="mt-3 text-lg text-muted-foreground">
-              What can I help you with today?
+              {accessDenied
+                ? "Agent access hasn’t been enabled for your account yet."
+                : "What can I help you with today?"}
             </p>
             {/* <p className="mt-2 text-sm text-muted-foreground/80">
               Natural language control for Gmail and Google Calendar.

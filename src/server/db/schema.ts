@@ -59,9 +59,33 @@ export const agentUsageRelations = relations(agentUsage, ({ one }) => ({
   user: one(users, { fields: [agentUsage.userId], references: [users.id] }),
 }));
 
+export const agentAllowlist = createTable(
+  "agent_allowlist",
+  (d) => ({
+    id: d
+      .varchar({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    email: d.varchar({ length: 255 }).notNull().unique(),
+    userId: d.varchar({ length: 255 }).references(() => users.id),
+    grantedBy: d.varchar({ length: 255 }).notNull(),
+    createdAt: d
+      .timestamp({ mode: "date", withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  }),
+  (t) => [index("agent_allowlist_user_idx").on(t.userId)],
+);
+
+export const agentAllowlistRelations = relations(agentAllowlist, ({ one }) => ({
+  user: one(users, { fields: [agentAllowlist.userId], references: [users.id] }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   agentUsage: many(agentUsage),
+  agentAllowlist: many(agentAllowlist),
 }));
 
 export const accounts = createTable(

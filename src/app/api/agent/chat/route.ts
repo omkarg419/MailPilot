@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+import { AgentAccessDeniedError, assertAgentAccess } from "@/server/agent/access";
 import { auth } from "@/server/auth";
 import {
   executeOperation,
@@ -38,6 +39,18 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await assertAgentAccess(session.user.id, session.user.email);
+  } catch (err) {
+    if (err instanceof AgentAccessDeniedError) {
+      return Response.json(
+        { error: err.message, code: "AGENT_ACCESS_DENIED" },
+        { status: 403 },
+      );
+    }
+    throw err;
   }
 
   let body: AgentChatRequestBody;
