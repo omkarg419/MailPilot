@@ -188,7 +188,7 @@ function CalendarGridSkeleton() {
 
 export function CalendarTimeGrid({
   weekStart,
-  selectedDay,
+  selectedDay: _selectedDay,
   events,
   isEventsFetching = false,
   isLoading,

@@ -54,7 +54,7 @@ function setSharedConnection(connection: SharedConnection | null): void {
 function getKnownThreadIds(): Set<string> {
   const store = globalThis as GlobalStore;
   store[KNOWN_THREADS_KEY] ??= new Set();
-  return store[KNOWN_THREADS_KEY]!;
+  return store[KNOWN_THREADS_KEY];
 }
 
 /** Skip notify after the user sends mail (Gmail still pushes webhooks). */
@@ -172,7 +172,7 @@ function attachSharedHandlers(connection: SharedConnection) {
     if (!current) return;
 
     try {
-      const data = JSON.parse(event.data) as { type?: string };
+      const data = JSON.parse(String(event.data)) as { type?: string };
       if (data.type === "inbox_changed") {
         scheduleThrottledInboxRefresh(current.inboxTimers);
       } else if (data.type === "calendar_changed") {
@@ -241,13 +241,13 @@ export function useMailRealtimeConnection() {
   }, []);
 }
 
-export function useMailRealtimeInbox(onInboxChanged: () => void) {
+export function useMailRealtimeInbox(onInboxChanged: () => void | Promise<void>) {
   const handlerRef = useRef(onInboxChanged);
   handlerRef.current = onInboxChanged;
 
   useEffect(() => {
     const onChanged = () => {
-      handlerRef.current();
+      void handlerRef.current();
     };
 
     window.addEventListener(MAIL_INBOX_CHANGED_EVENT, onChanged);

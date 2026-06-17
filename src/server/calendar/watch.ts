@@ -179,6 +179,6 @@ export function resolveTenantIdFromCalendarChannel(
   channelId: string | null | undefined,
 ): string | null {
   if (!channelId) return null;
-  const match = channelId.match(UUID_PREFIX);
+  const match = UUID_PREFIX.exec(channelId);
   return match?.[0] ?? null;
 }

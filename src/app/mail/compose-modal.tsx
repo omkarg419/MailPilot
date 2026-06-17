@@ -308,7 +308,7 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
   const invalid = recipients.filter((r) => !EMAIL_RE.test(r));
   const pending = sendEmail.isPending || createDraft.isPending;
 
-  const validate = () => {
+  const validate = useCallback(() => {
     if (recipients.length === 0) {
       setError("Add at least one recipient.");
       return false;
@@ -319,7 +319,7 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
     }
     setError(null);
     return true;
-  };
+  }, [recipients, invalid]);
 
   const handleSend = useCallback(() => {
     if (!initial || !validate()) return;
@@ -329,7 +329,7 @@ export function ComposeModal({ initial, onClose, onSent }: ComposeModalProps) {
       body,
       threadId: initial.threadId,
     });
-  }, [initial, recipients, invalid, subject, body, sendEmail]);
+  }, [initial, validate, recipients, subject, body, sendEmail]);
 
   const handleDraft = () => {
     if (!initial || !validate()) return;

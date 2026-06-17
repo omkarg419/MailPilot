@@ -25,7 +25,7 @@ export function getListThreadsQueryInput(
 ): ListThreadsQueryInput {
   return {
     label,
-    q: q?.trim() || undefined,
+    q: q?.trim() ? q.trim() : undefined,
   };
 }
 

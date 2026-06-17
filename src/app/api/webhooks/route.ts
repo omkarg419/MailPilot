@@ -38,9 +38,7 @@ export async function POST(request: NextRequest) {
     headers[key] = value;
   });
 
-  let body: string | Record<string, unknown>;
-
-  body = await parseWebhookBody(request);
+  const body: string | Record<string, unknown> = await parseWebhookBody(request);
 
   const tenantId = await resolveWebhookTenantId(body, headers);
   if (!tenantId) {

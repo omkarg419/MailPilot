@@ -87,7 +87,7 @@ async function upsertApiThreadToCache(
 
   for (const message of thread.messages ?? []) {
     if (!message.id) continue;
-    const payload = message.payload as MessagePart | undefined;
+    const payload = message.payload;
     await db.upsertByEntityId(message.id, {
       ...message,
       id: message.id,
