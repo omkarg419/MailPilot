@@ -18,6 +18,7 @@ import {
   isCombinedMeetingEmailRequest,
   isPostBookingFollowUpPrompt,
 } from "@/lib/agent-flow";
+import { AGENT_SUGGESTIONS } from "@/lib/agent-guardrails";
 import { formatCalendarEventRange } from "@/lib/calendar-display";
 import { api } from "@/trpc/react";
 
@@ -33,21 +34,7 @@ import type {
 } from "@/types/agent-chat";
 import { assistantBlocksToHistoryContent } from "@/types/agent-chat";
 
-const SUGGESTIONS = [
-  {
-    label: "Summarize my unread inbox",
-    prompt: "Summarize my unread inbox",
-  },
-  {
-    label: "Draft a professional email",
-    prompt:
-      "Draft a professional email to alex@example.com about our project update",
-  },
-  {
-    label: "Book a 30-minute meeting",
-    prompt: "Book a 30-minute meeting tomorrow at 3pm",
-  },
-] as const;
+const SUGGESTIONS = AGENT_SUGGESTIONS;
 
 type AgentChatProps = {
   userName?: string;
