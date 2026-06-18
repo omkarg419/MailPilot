@@ -31,6 +31,13 @@ export function LandingHero() {
             </Link>
             <a
               href="#agent-showcase"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById("agent-showcase")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+              }}
               className={cn(
                 buttonVariants({ variant: "outline", size: "lg" }),
                 "h-10 rounded-[0.75rem] px-6 text-sm",
